@@ -4,6 +4,7 @@ export { ChatHeader } from "./components/ChatHeader";
 export { MessageList } from "./components/MessageList";
 export { UserMessage } from "./components/UserMessage";
 export { AgentMessage } from "./components/AgentMessage";
+export { MarkdownRenderer } from "./components/MarkdownRenderer";
 export { ChatComposer } from "./components/ChatComposer";
 export { TypingIndicator } from "./components/TypingIndicator";
 
