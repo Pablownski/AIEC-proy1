@@ -216,3 +216,33 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Node / npm
+node_modules/
+.npm
+npm-debug.log*
+
+# Next.js
+.next/
+out/
+next-env.d.ts.bak
+
+# Vite/Vitest
+coverage/
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# Env files
+.env.local
+.env.*.local
+
+# Editors / OS
+.DS_Store
+Thumbs.db
+
+# TypeScript build info
+*.tsbuildinfo
