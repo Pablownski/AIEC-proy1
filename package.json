@@ -1,0 +1,28 @@
+{
+  "name": "agichat",
+  "private": true,
+  "workspaces": [
+    "apps/web",
+    "packages/chat-widget"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace apps/web",
+    "lint": "npm run lint --workspace apps/web && npm run lint --workspace @agichat/chat-widget",
+    "typecheck": "npm run typecheck --workspace apps/web && npm run typecheck --workspace @agichat/chat-widget",
+    "test": "npm run test --workspace @agichat/chat-widget",
+    "test:coverage": "npm run test:coverage --workspace @agichat/chat-widget",
+    "build": "npm run build --workspace apps/web",
+    "e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.46.0",
+    "@typescript-eslint/eslint-plugin": "^8.3.0",
+    "@typescript-eslint/parser": "^8.3.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-react": "^7.35.0",
+    "eslint-plugin-react-hooks": "^4.6.2",
+    "prettier": "^3.3.3",
+    "wait-on": "^7.2.0"
+  }
+}
