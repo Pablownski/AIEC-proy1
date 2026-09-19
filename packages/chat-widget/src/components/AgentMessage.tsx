@@ -1,4 +1,5 @@
 import type { ChatMessage } from "../types/chat";
+import { MarkdownRenderer } from "./MarkdownRenderer";
 
 export interface AgentMessageProps {
   message: ChatMessage;
@@ -7,7 +8,7 @@ export interface AgentMessageProps {
 export function AgentMessage({ message }: AgentMessageProps) {
   return (
     <li className="agichat-message agichat-message--agent">
-      <p>{message.content}</p>
+      <MarkdownRenderer content={message.content} />
     </li>
   );
 }

@@ -12,19 +12,19 @@ const userMsg: ChatMessage = {
 const agentMsg: ChatMessage = {
   id: "2",
   role: "assistant",
-  content: "Hola de vuelta",
+  content: "**Hola** de vuelta",
   createdAt: "2026-01-01T00:00:01.000Z",
 };
 
 describe("MessageList", () => {
-  it("renders user messages", () => {
+  it("renders user messages as plain text", () => {
     render(<MessageList messages={[userMsg]} agentName="Sofía" isAgentTyping={false} />);
     expect(screen.getByText("Hola")).toBeInTheDocument();
   });
 
-  it("renders agent messages", () => {
+  it("renders agent messages with markdown", () => {
     render(<MessageList messages={[agentMsg]} agentName="Sofía" isAgentTyping={false} />);
-    expect(screen.getByText("Hola de vuelta")).toBeInTheDocument();
+    expect(screen.getByText("Hola").tagName).toBe("STRONG");
   });
 
   it("keeps chronological order", () => {
