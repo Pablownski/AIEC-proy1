@@ -34,10 +34,13 @@ test.describe("AGIChat widget — error path", () => {
     await input.fill("Hola");
     await input.press("Enter");
 
-    await expect(page.getByRole("alert")).toContainText("Intenta nuevamente");
+    // Scoped to our own banner: Next.js injects its own role="alert" route
+    // announcer into every page, which also matches a bare getByRole("alert").
+    const errorBanner = page.locator(".agichat-error");
+    await expect(errorBanner).toContainText("El servidor respondió con un error");
 
     await page.getByRole("button", { name: "Reintentar" }).click();
 
-    await expect(page.getByRole("alert")).not.toBeVisible({ timeout: 10000 });
+    await expect(errorBanner).not.toBeVisible({ timeout: 10000 });
   });
 });
