@@ -1,1 +1,4 @@
-export const PACKAGE_NAME = "@agichat/chat-widget";
+export type { ChatTransport } from "./transport/chat-transport";
+export { ChatTransportError } from "./transport/chat-transport";
+
+export type { ChatMessage, ChatStatus, ChatWidgetConfig, MessageRole } from "./types/chat";
