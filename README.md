@@ -5,7 +5,7 @@ Widget de chat reutilizable (`@agichat/chat-widget`) con un backend FastAPI de r
 ## Requisitos
 
 - Docker + Docker Compose (recomendado), **o**
-- Node.js 20+ y Python 3.12+ para correr los servicios sin contenedores.
+- Node.js 24+ y Python 3.12+ para correr los servicios sin contenedores.
 
 ## Puesta en marcha rápida (Docker, con hot reload)
 

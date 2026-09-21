@@ -6,21 +6,26 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint app components lib next-env.d.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@agichat/chat-widget": "*",
-    "next": "^14.2.5",
+    "next": "16.3.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "@next/eslint-plugin-next": "16.3.5",
     "@types/node": "^20.14.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
-    "eslint": "^8.57.0",
-    "eslint-config-next": "^14.2.5",
+    "@typescript-eslint/eslint-plugin": "8.70.0",
+    "@typescript-eslint/parser": "8.70.0",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.3.5",
+    "eslint-plugin-react-hooks": "7.1.1",
     "typescript": "^5.5.4"
   }
 }

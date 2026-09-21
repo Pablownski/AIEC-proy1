@@ -1,5 +1,3 @@
-import time
-
 import pytest
 
 from app.agents.base import Agent
@@ -34,14 +32,18 @@ async def test_mock_agent_greets_on_greeting():
     assert "Hola" in reply or "hola" in reply
 
 
-async def test_mock_agent_respects_configured_delay():
+async def test_mock_agent_respects_configured_delay(monkeypatch):
+    observed_delays: list[float] = []
+
+    async def fake_sleep(delay_seconds: float) -> None:
+        observed_delays.append(delay_seconds)
+
+    monkeypatch.setattr("app.agents.mock.asyncio.sleep", fake_sleep)
     agent = MockAgent(delay_seconds=0.05)
 
-    start = time.monotonic()
     await agent.respond("Hola", conversation_id="conv-1")
-    elapsed = time.monotonic() - start
 
-    assert elapsed >= 0.05
+    assert observed_delays == [0.05]
 
 
 async def test_mock_agent_rejects_empty_message():
