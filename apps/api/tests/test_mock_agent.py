@@ -24,6 +24,16 @@ async def test_mock_agent_echoes_context_from_the_message():
     assert "AGIChat" in reply
 
 
+async def test_mock_agent_does_not_wrap_user_markdown_with_emphasis_delimiters():
+    agent = MockAgent(delay_seconds=0)
+    message = "Esto ya trae **énfasis**, `código` y [link](https://example.com)."
+
+    reply = await agent.respond(message, conversation_id="conv-1")
+
+    assert message in reply
+    assert f"**{message}**" not in reply
+
+
 async def test_mock_agent_greets_on_greeting():
     agent = MockAgent(delay_seconds=0)
 
