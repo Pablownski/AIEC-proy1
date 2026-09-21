@@ -2,7 +2,7 @@
 
 ## Requisitos
 
-- Node.js 20+
+- Node.js 24+
 - Python 3.12+
 - Docker + Docker Compose (opcional pero recomendado)
 

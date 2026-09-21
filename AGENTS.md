@@ -37,7 +37,7 @@ Ver [docs/ARQUITECTURA.md](docs/ARQUITECTURA.md) para el detalle y el diagrama c
 Frontend (desde la raíz, con npm workspaces):
 
 ```bash
-npm install
+npm install                                 # requiere Node.js 24+
 npm run dev:web                                    # Next.js con hot reload
 npm run test --workspace @agichat/chat-widget       # Vitest
 npm run test:coverage --workspace @agichat/chat-widget

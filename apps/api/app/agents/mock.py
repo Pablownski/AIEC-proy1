@@ -45,7 +45,7 @@ class MockAgent:
             return _FEATURES_REPLY
 
         return (
-            f"Recibí tu mensaje: **{cleaned}**\n\n"
+            f"Recibí tu mensaje:\n\n{cleaned}\n\n"
             "Todavía soy un agente simulado (`MockAgent`), pero pronto seré reemplazado "
             "por un agente real sin cambios en el widget."
         )

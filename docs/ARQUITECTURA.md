@@ -28,7 +28,6 @@ flowchart TB
         subgraph Agents["Capa de Agentes"]
             Interface["Agent Protocol"]
             Mock["MockAgent"]
-            Future["Agente Real - Proyecto 2"]
         end
     end
 
@@ -42,7 +41,6 @@ flowchart TB
     WS --> Service
     Service --> Interface
     Interface --> Mock
-    Interface -.-> Future
 ```
 
 ## 3. Justificación
