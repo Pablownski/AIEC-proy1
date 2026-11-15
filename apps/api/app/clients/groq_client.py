@@ -1,0 +1,79 @@
+"""Async Groq boundary; not yet wired into the chatbot or its agent."""
+
+from __future__ import annotations
+
+import math
+from collections.abc import Sequence
+from types import TracebackType
+
+from groq import (
+    APIConnectionError,
+    APIError,
+    APITimeoutError,
+    AsyncGroq,
+    AuthenticationError,
+    RateLimitError,
+)
+from groq.types.chat import ChatCompletion, ChatCompletionMessageParam
+
+from app.core.config import Settings
+
+
+class GroqClientError(Exception):
+    """Controlled provider failure with a safe message and machine-readable code."""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+class GroqClient:
+    def __init__(self, settings: Settings, *, timeout_seconds: float = 10.0) -> None:
+        if not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
+            raise ValueError("timeout_seconds debe ser positivo y finito.")
+        if settings.groq_api_key is None or not settings.groq_api_key.get_secret_value().strip():
+            raise GroqClientError("configuration", "GROQ_API_KEY no está configurada.")
+        self._model = settings.groq_model
+        self._client = AsyncGroq(
+            api_key=settings.groq_api_key.get_secret_value(),
+            timeout=timeout_seconds,
+            max_retries=0,
+        )
+
+    async def complete(self, messages: Sequence[ChatCompletionMessageParam]) -> ChatCompletion:
+        """Return the full completion, preserving tool calls for a future agent."""
+        try:
+            response = await self._client.chat.completions.create(
+                model=self._model, messages=messages, stream=False
+            )
+        except APITimeoutError:
+            raise GroqClientError("timeout", "Groq excedió el tiempo de espera.") from None
+        except APIConnectionError:
+            raise GroqClientError("connection", "No se pudo conectar con Groq.") from None
+        except AuthenticationError:
+            raise GroqClientError("authentication", "Groq rechazó la autenticación.") from None
+        except RateLimitError:
+            raise GroqClientError("rate_limit", "Groq alcanzó el límite de solicitudes.") from None
+        except APIError:
+            raise GroqClientError("provider", "No se pudo completar la solicitud a Groq.") from None
+
+        if not response.choices:
+            raise GroqClientError("response", "Groq devolvió una respuesta sin opciones.")
+        message = response.choices[0].message
+        if not (message.content and message.content.strip()) and not message.tool_calls:
+            raise GroqClientError("response", "Groq devolvió una respuesta sin contenido.")
+        return response
+
+    async def close(self) -> None:
+        await self._client.close()
+
+    async def __aenter__(self) -> GroqClient:
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        await self.close()
