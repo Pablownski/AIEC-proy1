@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 
 from groq.types.chat import ChatCompletionMessageParam
 
+from app.schemas.presentation import ChatMetadata
 from app.tools.models import ToolResult
 
 
@@ -25,6 +26,7 @@ class Conversation:
     touched: float = field(default_factory=time.monotonic)
     last_input: str | None = None
     last_reply: str | None = None
+    last_metadata: ChatMetadata | None = None
     users: int = 0
 
     def messages(self) -> list[ChatCompletionMessageParam]:

@@ -6,8 +6,9 @@ a real agent in Proyecto 2) can be swapped without touching this service.
 
 from __future__ import annotations
 
-from app.agents.base import Agent
+from app.agents.base import Agent, StructuredAgent
 from app.schemas.chat import ChatMessage, ChatRequestMessage, ChatResponse
+from app.schemas.presentation import AgentReply
 
 
 class ChatService:
@@ -17,10 +18,11 @@ class ChatService:
     async def handle_message(
         self, conversation_id: str, message: ChatRequestMessage
     ) -> ChatResponse:
-        reply_content = await self.agent.respond(
-            message=message.content, conversation_id=conversation_id
-        )
+        if isinstance(self.agent, StructuredAgent):
+            reply = await self.agent.respond_with_metadata(message.content, conversation_id)
+        else:
+            reply = AgentReply(content=await self.agent.respond(message.content, conversation_id))
         return ChatResponse(
             conversation_id=conversation_id,
-            message=ChatMessage(role="assistant", content=reply_content),
+            message=ChatMessage(role="assistant", content=reply.content, metadata=reply.metadata),
         )

@@ -8,6 +8,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
+from app.schemas.presentation import ChatMetadata
+
 MessageRole = Literal["user", "assistant", "system"]
 
 
@@ -20,6 +22,7 @@ class ChatMessage(BaseModel):
     role: MessageRole
     content: str = Field(min_length=1)
     created_at: datetime = Field(default_factory=_now)
+    metadata: ChatMetadata | None = None
 
 
 class ChatRequestMessage(BaseModel):
