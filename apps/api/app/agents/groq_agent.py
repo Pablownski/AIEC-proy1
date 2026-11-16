@@ -38,6 +38,11 @@ RATE_LIMIT_ERROR = (
 DAILY_LIMIT_ERROR = (
     "Se alcanzó una cuota diaria de Groq. Inténtalo cuando se restablezca; este turno no se guardó."
 )
+BOOKS_UNAVAILABLE = (
+    "Google Books limitó las consultas y no puedo verificar ahora la comparación con el libro. "
+    "Las recomendaciones anteriores siguen disponibles; intenta la comparación más tarde. "
+    "Este turno incompleto no se guardó."
+)
 
 
 class GroqAgent:
@@ -79,6 +84,8 @@ class GroqAgent:
             trace.emit(
                 "agent_turn_failed", code=failure_code(exc), status_code=provider_status(exc)
             )
+            if failure_code(exc) == "books_unavailable":
+                return BOOKS_UNAVAILABLE
             if failure_code(exc) == "groq_rate_limit":
                 kind = exc.limit_type if isinstance(exc, GroqClientError) else "unknown"
                 return DAILY_LIMIT_ERROR if kind in {"rpd", "tpd", "daily"} else RATE_LIMIT_ERROR
@@ -193,6 +200,9 @@ class GroqAgent:
                             if result.items
                             else "no_results",
                         )
+                        if result.source == "google_books" and result.error == "rate_limit":
+                            # End the turn: no query variation, sibling tool or LLM retry can loop.
+                            raise AgentFailure("books_unavailable")
                         # Facts appear once in consolidated evidence; keep valid tool-call pairing.
                         content = json.dumps(
                             {
@@ -203,6 +213,8 @@ class GroqAgent:
                             },
                             separators=(",", ":"),
                         )
+                    except AgentFailure:
+                        raise
                     except Exception as exc:  # noqa: BLE001 - intentionally safe feedback
                         trace.tool_failed = True
                         trace.emit(

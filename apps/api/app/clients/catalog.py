@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import html
+import json
+import logging
 import re
 from typing import Any, Literal
 
@@ -12,6 +14,7 @@ from pydantic import ValidationError
 from app.core.config import Settings
 from app.tools.models import (
     GENRES,
+    INPUTS,
     Book,
     BookDetails,
     DiscoverMovies,
@@ -23,6 +26,52 @@ from app.tools.models import (
     WritingCredit,
 )
 
+logger = logging.getLogger(__name__)
+# MCP root logging is ERROR; keep safe catalog diagnostics visible.
+logger.setLevel(logging.WARNING)
+# httpx INFO includes query strings (API keys and user searches). Never emit those records.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
+QUOTA_REASONS = {
+    "rateLimitExceeded",
+    "userRateLimitExceeded",
+    "dailyLimitExceeded",
+    "quotaExceeded",
+    "RATE_LIMIT_EXCEEDED",
+    "QUOTA_EXCEEDED",
+    "RESOURCE_EXHAUSTED",
+}
+SAFE_REASONS = QUOTA_REASONS | {
+    "keyInvalid",
+    "accessNotConfigured",
+    "forbidden",
+    "backendError",
+    "API_KEY_INVALID",
+    "SERVICE_DISABLED",
+    "PERMISSION_DENIED",
+    "UNAUTHENTICATED",
+    "UNAVAILABLE",
+}
+
+
+def catalog_reason(response: httpx.Response | None) -> str:
+    if response is None:
+        return "unknown"
+    try:
+        error = response.json().get("error", {})
+        candidates: list[object] = []
+        for field in ("errors", "details"):
+            entries = error.get(field, [])
+            if isinstance(entries, list):
+                candidates.extend(item.get("reason") for item in entries if isinstance(item, dict))
+        candidates.append(error.get("status"))
+        return next(
+            (reason for reason in candidates if isinstance(reason, str) and reason in SAFE_REASONS),
+            "unknown",
+        )
+    except (ValueError, TypeError, AttributeError):
+        return "unknown"
+
 
 class CatalogClient:
     def __init__(self, settings: Settings, http: httpx.AsyncClient) -> None:
@@ -33,13 +82,31 @@ class CatalogClient:
         source: Literal["google_books", "tmdb"] = (
             "google_books" if name in {"search_books", "book_details"} else "tmdb"
         )
+        response: httpx.Response | None = None
+
+        def failure(code: str) -> ToolResult:
+            result = ToolResult.model_validate({"source": source, "error": code})
+            logger.warning(
+                json.dumps(
+                    {
+                        "event": "catalog_request_failed",
+                        "source": source,
+                        "operation": name if name in INPUTS else "unknown",
+                        "code": result.error,
+                        "status_code": response.status_code if response is not None else None,
+                        "provider_reason": catalog_reason(response),
+                    }
+                )
+            )
+            return result
+
         try:
             if source == "tmdb":
                 if (
                     not self.settings.tmdb_api_key
                     or not self.settings.tmdb_api_key.get_secret_value()
                 ):
-                    return ToolResult(source=source, error="configuration")
+                    return failure("configuration")
                 path, params = self._movie_request(name, arguments)
                 params["api_key"] = self.settings.tmdb_api_key.get_secret_value()
                 params["language"] = "es-ES"
@@ -53,9 +120,15 @@ class CatalogClient:
             if response.status_code == 404:
                 return ToolResult(source=source)
             if response.status_code in {401, 403}:
-                return ToolResult(source=source, error="authentication")
+                if (
+                    source == "google_books"
+                    and response.status_code == 403
+                    and catalog_reason(response) in QUOTA_REASONS
+                ):
+                    return failure("rate_limit")
+                return failure("authentication")
             if response.status_code == 429:
-                return ToolResult(source=source, error="rate_limit")
+                return failure("rate_limit")
             response.raise_for_status()
             data = response.json()
             if not isinstance(data, dict):
@@ -66,13 +139,13 @@ class CatalogClient:
             rows = [data] if name == "book_details" else data.get("items", [])
             return ToolResult(source=source, items=[self._book(row) for row in rows[:5]])
         except httpx.TimeoutException:
-            return ToolResult(source=source, error="timeout")
+            return failure("timeout")
         except httpx.RequestError:
-            return ToolResult(source=source, error="connection")
+            return failure("connection")
         except httpx.HTTPStatusError:
-            return ToolResult(source=source, error="unavailable")
+            return failure("unavailable")
         except (ValueError, TypeError, KeyError, AttributeError, ValidationError):
-            return ToolResult(source=source, error="invalid_response")
+            return failure("invalid_response")
 
     def _movie_request(self, name: str, args: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         if name == "search_movies":

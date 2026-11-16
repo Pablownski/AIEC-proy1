@@ -139,9 +139,11 @@ eliminan títulos decorativos sin alterar parámetros. GPT OSS usa `reasoning_ef
 con el mismo máximo de salida (1800); otros modelos omiten ese parámetro.
 
 Hay **un reintento total por turno**, compartido entre rondas. Solo para señales
-TPM/RPM explícitas, con `retry-after` válido (segundos o fecha HTTP), espera ≤8 s
-y tiempo restante para esperar más el timeout de E/S. No se adelanta una espera
-mayor: se devuelve un mensaje comprensible. Cuotas diarias RPD/TPD/daily y tipos
+TPM/RPM explícitas, con `retry-after` válido (segundos o fecha HTTP) y tiempo
+restante suficiente para esperar más el timeout de E/S. No hay un corte fijo de
+8 s: una espera de 12 s puede recuperarse si cabe en el presupuesto de 60 s.
+No se adelanta una espera que no cabe: se devuelve un mensaje comprensible.
+Cuotas diarias RPD/TPD/daily y tipos
 desconocidos no se reintentan; tampoco cabeceras ausentes/inválidas. El SDK sigue
 con `max_retries=0`. Hasta 9 rondas lógicas implican como máximo 10 peticiones HTTP
 incluyendo ese único reintento, dentro de los 60 s totales (widget: 75 s).
@@ -157,6 +159,33 @@ Los resúmenes y razonamiento bajo requieren verificar calidad con el modelo rea
 
 Referencias: [límites y cabeceras Groq](https://console.groq.com/docs/rate-limits),
 [razonamiento GPT OSS](https://console.groq.com/docs/reasoning).
+
+## Cuota de Google Books
+
+El primer `rate_limit` de `search_books` o `book_details` termina el turno con una
+explicación determinista de que la comparación no puede verificarse. No se
+ejecutan herramientas restantes del lote, variantes de búsqueda ni más rondas
+Groq para insistir sobre la fuente indisponible. No se guarda ese turno, ni sus
+artefactos/caché parciales. La memoria previa permanece y una petición manual
+posterior puede volver a usar Books; no hay bloqueo persistente entre turnos.
+
+Antes, `catalog_rate_limit` solo podía provenir de un HTTP 429. Ahora también se
+reconoce un 403 de Books con razón estructurada de cuota conocida. Otros 401/403
+siguen como autenticación, 5xx como indisponibilidad, y timeouts/conexión conservan
+sus códigos propios. No se interpreta texto libre de errores para clasificarlos.
+
+`catalog_request_failed` incluye fuente, operación permitida, código, status HTTP
+y razón del proveedor de una lista cerrada (`rateLimitExceeded`,
+`dailyLimitExceeded`, etc.; el resto se registra como `unknown`). No incluye URL,
+parámetros, cuerpos ni mensajes del proveedor. El logger propio mantiene avisos
+visibles en el subprocess MCP; se suprimen registros INFO/DEBUG de httpx porque
+sus URLs pueden contener claves y búsquedas. No reactivar esos logs con secretos.
+Estos datos permiten investigar el incidente, pero no demuestran retrospectivamente
+qué cuota o configuración concreta de Google causó los 429.
+
+Las pruebas del agente bloquean conexiones MCP no simuladas por defecto: los
+mocks HTTP del proceso padre no protegen por sí solos a un subprocess. Las pruebas
+MCP explícitas existentes mantienen su transporte real con servicios simulados.
 
 Referencias: [Groq](https://console.groq.com/docs/tool-use/overview),
 [MCP](https://github.com/modelcontextprotocol/python-sdk/tree/v1.x),

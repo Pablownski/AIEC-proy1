@@ -27,6 +27,15 @@ def _block_external_http(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _block_unmocked_agent_mcp(monkeypatch):
+    def blocked(*args, **kwargs):
+        raise AssertionError("Agent tests must explicitly mock the MCP connection")
+
+    # Parent httpx mocks do not propagate to STDIO subprocesses. Fail closed before spawning.
+    monkeypatch.setattr("app.agents.groq_agent.open_catalog_tools", blocked)
+
+
+@pytest.fixture(autouse=True)
 def _isolate_groq_environment(monkeypatch):
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
     monkeypatch.delenv("GROQ_MODEL", raising=False)

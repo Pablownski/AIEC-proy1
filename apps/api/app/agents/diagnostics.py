@@ -29,6 +29,7 @@ def failure_code(exc: BaseException) -> str:
         "tool_limit",
         "round_limit",
         "tools_after_limit",
+        "books_unavailable",
     }:
         return str(exc)
     if isinstance(exc, GroqClientError) and exc.code in {

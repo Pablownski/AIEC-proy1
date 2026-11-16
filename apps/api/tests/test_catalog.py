@@ -1,3 +1,6 @@
+import json
+import logging
+
 import httpx
 import pytest
 from pydantic import ValidationError
@@ -177,3 +180,47 @@ def test_result_rejects_forged_sources():
         ToolResult(source="tmdb", items=[movie], error="timeout")
     with pytest.raises(ValidationError):
         Movie(**{**movie.model_dump(), "source_url": "https://evil.test"})
+
+
+@pytest.mark.parametrize(
+    "status,reason,expected",
+    [
+        (429, "rateLimitExceeded", "rate_limit"),
+        (429, "private-unknown-reason", "rate_limit"),
+        (403, "dailyLimitExceeded", "rate_limit"),
+        (403, "userRateLimitExceeded", "rate_limit"),
+        (403, "API_KEY_INVALID", "authentication"),
+        (401, "UNAUTHENTICATED", "authentication"),
+        (500, "backendError", "unavailable"),
+    ],
+)
+async def test_books_error_diagnostics_are_allowlisted_and_status_specific(
+    caplog, status, reason, expected
+):
+    def handle(request):
+        return httpx.Response(
+            status,
+            json={
+                "error": {
+                    "message": "private-body",
+                    "status": "PERMISSION_DENIED",
+                    "errors": [{"reason": reason}],
+                }
+            },
+        )
+
+    with caplog.at_level(logging.INFO):
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as http:
+            result = await CatalogClient(
+                Settings(google_books_api_key="private-key"), http
+            ).execute("search_books", {"title": "private-query"})
+    assert result.error == expected
+    event = json.loads(caplog.records[-1].getMessage())
+    assert event["status_code"] == status
+    assert event["source"] == "google_books"
+    assert event["code"] == expected
+    assert event["provider_reason"] == (
+        "PERMISSION_DENIED" if reason == "private-unknown-reason" else reason
+    )
+    for private in ("private-body", "private-key", "private-query", "private-unknown-reason"):
+        assert private not in caplog.text

@@ -101,7 +101,6 @@ class GroqClient:
                     retry = (
                         limit.kind in {"rpm", "tpm"}
                         and delay is not None
-                        and delay <= 8
                         and budget.retries_remaining > 0
                         and attempts < 1
                         and time.monotonic() + delay + self._timeout_seconds < budget.deadline

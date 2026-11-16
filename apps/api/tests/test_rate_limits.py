@@ -126,6 +126,32 @@ async def test_no_wait_when_turn_deadline_has_insufficient_room(sdk):
     sleep.assert_not_called()
 
 
+async def test_twelve_second_wait_recovers_when_turn_budget_allows_it(sdk):
+    sdk[1].chat.completions.create.side_effect = [limited(retry_after="12"), completion()]
+    with patch("app.clients.groq_client.asyncio.sleep", new_callable=AsyncMock) as sleep:
+        async with GroqClient(Settings(groq_api_key="test-key")) as client:
+            result = await client.complete(
+                [{"role": "user", "content": "Compara"}],
+                budget=RequestBudget(deadline=time.monotonic() + 60),
+            )
+    assert result.choices
+    sleep.assert_awaited_once_with(12)
+    assert sdk[1].chat.completions.create.await_count == 2
+
+
+async def test_twelve_second_wait_does_not_start_when_deadline_is_too_close(sdk):
+    sdk[1].chat.completions.create.side_effect = limited(retry_after="12")
+    with patch("app.clients.groq_client.asyncio.sleep", new_callable=AsyncMock) as sleep:
+        async with GroqClient(Settings(groq_api_key="test-key")) as client:
+            with pytest.raises(GroqClientError):
+                await client.complete(
+                    [{"role": "user", "content": "Compara"}],
+                    budget=RequestBudget(deadline=time.monotonic() + 15),
+                )
+    sleep.assert_not_called()
+    sdk[1].chat.completions.create.assert_awaited_once()
+
+
 def test_http_date_retry_after_is_supported():
     value = format_datetime(datetime.now(UTC) + timedelta(seconds=5), usegmt=True)
     delay = read_rate_limit(limited(retry_after=value)).retry_after
