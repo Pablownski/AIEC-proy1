@@ -9,7 +9,7 @@ import httpx
 import pytest
 from mcp.types import CallToolResult, ListToolsResult, Tool
 
-from app.agents.groq_agent import SAFE_ERROR, GroqAgent
+from app.agents.groq_agent import RATE_LIMIT_ERROR, SAFE_ERROR, GroqAgent
 from app.clients.catalog import CatalogClient
 from app.clients.groq_client import GroqClientError
 from app.clients.mcp_client import MCPTools
@@ -160,7 +160,9 @@ async def test_eight_tools_reserve_ninth_completion_without_extra_calls(comparis
     assert await agent.respond("Compara", "comparison") != SAFE_ERROR
     assert client.complete.await_count == 9
     assert client.complete.call_args.kwargs["allow_tools"] is False
-    assert session.call_tool.await_count == 9  # 1 seed + 8 follow-up, never 9 in one turn.
+    assert (
+        session.call_tool.await_count == 2
+    )  # One discovery + one detail; duplicate calls use cache.
 
 
 @pytest.mark.parametrize("mode", ["transport", "catalog"])
@@ -210,7 +212,8 @@ async def test_provider_failure_has_safe_diagnostics_without_saving_turn(
         code, "secret-exception-marker", status_code=status
     )
     with caplog.at_level(logging.INFO, logger="uvicorn.error"):
-        assert await agent.respond("private-user-input", "comparison") == SAFE_ERROR
+        expected = RATE_LIMIT_ERROR if code == "rate_limit" else SAFE_ERROR
+        assert await agent.respond("private-user-input", "comparison") == expected
     event = json.loads(caplog.records[-1].getMessage())
     assert event["code"] == f"groq_{code}"
     assert event["stage"] == "llm"

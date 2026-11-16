@@ -60,7 +60,8 @@ async def test_dynamic_multiple_calls_and_followup_memory(agent_setup):
     context = client.complete.call_args.args[0]
     assert context[0]["content"] == SYSTEM_PROMPT
     assert any(msg.get("content") == "Tres películas de fantasía" for msg in context)
-    assert any(msg["role"] == "tool" for msg in context)
+    assert not any(msg["role"] == "tool" for msg in context)
+    assert "Obra de prueba" in str(context)
     assert len(agent.memory.entries["one"].turns) == 2
     assert agent.memory.entries["one"].artifacts
 

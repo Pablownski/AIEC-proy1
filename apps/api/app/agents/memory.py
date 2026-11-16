@@ -20,6 +20,7 @@ class Conversation:
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     turns: list[list[ChatCompletionMessageParam]] = field(default_factory=list)
     artifacts: list[ToolResult] = field(default_factory=list)
+    tool_cache: dict[str, ToolResult] = field(default_factory=dict)
     requests: deque[float] = field(default_factory=deque)
     touched: float = field(default_factory=time.monotonic)
     last_input: str | None = None
@@ -35,11 +36,14 @@ class Conversation:
         reply: str,
         turn: list[ChatCompletionMessageParam],
         artifacts: list[ToolResult],
+        tool_cache: dict[str, ToolResult] | None = None,
     ) -> None:
         self.turns.append(turn)
         while len(self.turns) > 6 or len(json.dumps(self.turns)) > 24000:
             self.turns.pop(0)
         self.artifacts = (self.artifacts + artifacts)[-12:]
+        if tool_cache is not None:
+            self.tool_cache = dict(list(tool_cache.items())[-12:])
         self.last_input, self.last_reply = text, reply
         self.touched = time.monotonic()
 

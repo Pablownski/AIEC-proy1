@@ -107,6 +107,7 @@ async def test_tool_definitions_enable_sequential_function_calling(sdk):
     assert kwargs["tool_choice"] == "auto"
     assert kwargs["parallel_tool_calls"] is False
     assert kwargs["max_completion_tokens"] == 1800
+    assert kwargs["reasoning_effort"] == "low"
 
 
 async def test_synthesis_can_disable_tools_without_changing_messages(sdk):

@@ -60,7 +60,7 @@ pero no parallel tool use según la documentación consultada. Alternativa
 configurable: `GROQ_MODEL=openai/gpt-oss-20b`. No hay fallback silencioso ni
 activación de facturación; verificar disponibilidad y cuotas Free en la cuenta.
 
-Timeouts: Groq E/S 10 s sin reintentos, catálogos 5 s, llamada MCP 8 s, turno 60 s,
+Timeouts: Groq E/S 10 s (sin reintentos del SDK), catálogos 5 s, llamada MCP 8 s, turno 60 s,
 HTTP del widget 75 s. Máximo 8 turnos simultáneos y 10 solicitudes/minuto por
 conversación. Entrada hasta 4000 caracteres, conversation_id hasta 128, consultas
 hasta 5 resultados. No hay navegación libre, escritura ni comandos del modelo.
@@ -69,6 +69,9 @@ Los errores no incluyen cuerpos ni credenciales. No activar logs detallados del 
 
 La memoria conserva hasta 6 turnos completos, 24000 caracteres serializados,
 12 resultados tipados y 128 conversaciones, con TTL inactivo de 15 minutos.
+Los turnos guardan diálogo, sin repetir trazas MCP. Una caché adicional de hasta
+12 consultas exitosas por conversación reutiliza argumentos normalizados; nunca
+comparte datos entre conversaciones ni confirma trabajo de un turno fallido.
 Se serializan turnos por conversación; solo se confirman al terminar correctamente,
 incluido el cierre MCP. Una respuesta parcial tras un error de herramienta/API
 no actualiza historial, artefactos ni la respuesta usada para deduplicación.
@@ -121,6 +124,39 @@ solo devuelve un `ToolResult.error`; no dispara directamente ese mensaje. Antes
 podía provocar más consultas hasta agotar rondas, sin que se registrase la causa.
 Los errores de ejecución de herramientas también se comunican al modelo de forma
 segura, pero ahora impiden confirmar el turno en memoria aunque haya texto final.
+
+## Tokens y HTTP 429
+
+El LLM recibe evidencias consolidadas por tipo/ID una sola vez, más el último
+intercambio de herramientas (referencias a esas evidencias). Se omiten pósteres e
+IMDb del contexto, pero se conservan completos en backend. Sinopsis/descripciones
+se limitan a 600 caracteres con `truncated_fields`; cuando hay referencias a
+adaptaciones después del prefijo, se incluye un extracto de esa zona. Identidades,
+autores, fechas, créditos, keywords, calificaciones e identificadores no se resumen.
+Se conserva completo el último diálogo para resolver referencias a las tres
+películas; los anteriores se abrevian a 1000 caracteres por mensaje. Los esquemas
+eliminan títulos decorativos sin alterar parámetros. GPT OSS usa `reasoning_effort=low`
+con el mismo máximo de salida (1800); otros modelos omiten ese parámetro.
+
+Hay **un reintento total por turno**, compartido entre rondas. Solo para señales
+TPM/RPM explícitas, con `retry-after` válido (segundos o fecha HTTP), espera ≤8 s
+y tiempo restante para esperar más el timeout de E/S. No se adelanta una espera
+mayor: se devuelve un mensaje comprensible. Cuotas diarias RPD/TPD/daily y tipos
+desconocidos no se reintentan; tampoco cabeceras ausentes/inválidas. El SDK sigue
+con `max_retries=0`. Hasta 9 rondas lógicas implican como máximo 10 peticiones HTTP
+incluyendo ese único reintento, dentro de los 60 s totales (widget: 75 s).
+
+`groq_rate_limited` registra tipo controlado, demora y decisión de reintento;
+`groq_usage` registra conteos reales de tokens cuando el SDK los proporciona.
+Se incluyen tamaños en caracteres de mensajes/esquemas, nunca su contenido.
+Según Groq, `remaining-requests` corresponde a RPD y `remaining-tokens` a TPM.
+No se puede identificar la cuota del incidente histórico sin señales adicionales.
+Los límites son de organización; otras sesiones pueden consumir la misma cuota.
+No hay contador distribuido ni garantía de completar toda comparación en Free.
+Los resúmenes y razonamiento bajo requieren verificar calidad con el modelo real.
+
+Referencias: [límites y cabeceras Groq](https://console.groq.com/docs/rate-limits),
+[razonamiento GPT OSS](https://console.groq.com/docs/reasoning).
 
 Referencias: [Groq](https://console.groq.com/docs/tool-use/overview),
 [MCP](https://github.com/modelcontextprotocol/python-sdk/tree/v1.x),
