@@ -1,6 +1,7 @@
 import type { ChatTransport } from "./chat-transport";
 import { ChatTransportError } from "./chat-transport";
 import type { ChatMessage } from "../types/chat";
+import { decodeMessage } from "./decode-message";
 
 export interface HttpChatTransportOptions {
   baseUrl: string;
@@ -76,11 +77,6 @@ export class HttpChatTransport implements ChatTransport {
       throw new ChatTransportError("La respuesta del servidor no tiene el formato esperado.");
     }
 
-    return {
-      id: body.message.id,
-      role: body.message.role,
-      content: body.message.content,
-      createdAt: body.message.created_at,
-    };
+    return decodeMessage(body.message);
   }
 }

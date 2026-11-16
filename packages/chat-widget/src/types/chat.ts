@@ -1,3 +1,4 @@
+import type { ChatMetadata } from "./presentation";
 export type MessageRole = "user" | "assistant" | "system";
 
 export interface ChatMessage {
@@ -5,6 +6,7 @@ export interface ChatMessage {
   role: MessageRole;
   content: string;
   createdAt: string;
+  metadata?: ChatMetadata;
 }
 
 export type ChatStatus = "idle" | "sending" | "receiving" | "error";

@@ -1,6 +1,7 @@
 import type { ChatTransport } from "./chat-transport";
 import { ChatTransportError } from "./chat-transport";
 import type { ChatMessage } from "../types/chat";
+import { decodeMessage } from "./decode-message";
 
 export interface WebSocketLike {
   readyState: number;
@@ -75,7 +76,10 @@ export class WebSocketChatTransport implements ChatTransport {
 
       const onMessage = (event: unknown) => {
         const raw = (event as { data: string }).data;
-        const payload = JSON.parse(raw) as Record<string, unknown>;
+        let payload: Record<string, unknown>;
+        try { payload = JSON.parse(raw) as Record<string, unknown>;
+          if (!payload || typeof payload !== "object") throw new Error();
+        } catch { cleanup(); reject(new ChatTransportError("Evento del servidor inválido.")); return; }
 
         if (payload.type === "agent_start") {
           this.onTypingChange?.(true);
@@ -101,18 +105,8 @@ export class WebSocketChatTransport implements ChatTransport {
           return;
         }
         if (payload.type === "agent_message") {
-          const backendMessage = payload.message as {
-            id: string;
-            role: ChatMessage["role"];
-            content: string;
-            created_at: string;
-          };
-          pendingReply = {
-            id: backendMessage.id,
-            role: backendMessage.role,
-            content: backendMessage.content,
-            createdAt: backendMessage.created_at,
-          };
+          try { pendingReply = decodeMessage(payload.message); }
+          catch (error) { cleanup(); reject(error); }
         }
       };
 
