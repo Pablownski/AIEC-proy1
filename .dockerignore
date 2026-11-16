@@ -10,3 +10,7 @@ node_modules
 **/.mypy_cache
 **/coverage
 **/htmlcov
+# Credentials must never enter either image build context.
+**/.env
+**/.env.*
+!**/.env.example

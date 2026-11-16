@@ -41,7 +41,7 @@ export class HttpChatTransport implements ChatTransport {
 
   constructor(options: HttpChatTransportOptions) {
     this.baseUrl = options.baseUrl.replace(/\/$/, "");
-    this.timeoutMs = options.timeoutMs ?? 15000;
+    this.timeoutMs = options.timeoutMs ?? 75000;
   }
 
   async sendMessage(conversationId: string, message: ChatMessage): Promise<ChatMessage> {

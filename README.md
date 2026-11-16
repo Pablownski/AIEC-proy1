@@ -2,6 +2,10 @@
 
 Widget de chat reutilizable (`@agichat/chat-widget`) con un backend FastAPI de referencia (`MockAgent` hoy, agente real en Proyecto 2). Monorepo con Next.js, FastAPI y un SDK de React desacoplado del backend mediante un contrato de transporte (`ChatTransport`).
 
+Proyecto 2: disponible `GroqAgent` con herramientas MCP reales para TMDB y Google
+Books y memoria acotada. `MockAgent` sigue siendo el predeterminado. Ver
+[configuración y ejecución del agente](docs/GROQ.md).
+
 ## Requisitos
 
 - Docker + Docker Compose (recomendado), **o**
