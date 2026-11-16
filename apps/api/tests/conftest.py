@@ -30,6 +30,9 @@ def _block_external_http(monkeypatch):
 def _isolate_groq_environment(monkeypatch):
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
     monkeypatch.delenv("GROQ_MODEL", raising=False)
+    monkeypatch.delenv("TMDB_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_BOOKS_API_KEY", raising=False)
+    monkeypatch.delenv("AGENT_PROVIDER", raising=False)
 
 
 @pytest.fixture(autouse=True)
