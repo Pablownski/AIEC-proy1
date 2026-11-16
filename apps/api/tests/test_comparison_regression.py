@@ -14,6 +14,7 @@ from app.clients.catalog import CatalogClient
 from app.clients.groq_client import GroqClientError
 from app.clients.mcp_client import MCPTools
 from app.core.config import Settings
+from app.tools.comparison import compare_movies
 from app.tools.models import INPUTS
 from tests.test_catalog import BOOK, MOVIE
 from tests.test_groq_client import completion
@@ -36,6 +37,8 @@ def request_tool(name, arguments, index):
 async def comparison_setup():
     def handle(request):
         if request.url.host == "api.themoviedb.org":
+            if request.url.path.endswith("/search/movie"):
+                return httpx.Response(200, json={"results": [MOVIE]})
             if request.url.path.endswith("/discover/movie"):
                 return httpx.Response(
                     200,
@@ -63,7 +66,11 @@ async def comparison_setup():
         )
 
         async def call_tool(name, arguments):
-            result = await catalog.execute(name, arguments)
+            result = (
+                await compare_movies(catalog, arguments["movie_ids"])
+                if name == "compare_movies"
+                else await catalog.execute(name, arguments)
+            )
             return CallToolResult(content=[], structuredContent=result.model_dump(mode="json"))
 
         session.call_tool.side_effect = call_tool

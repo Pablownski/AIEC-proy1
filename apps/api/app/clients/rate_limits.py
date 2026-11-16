@@ -20,6 +20,19 @@ class RequestBudget:
     deadline: float = field(default_factory=lambda: time.monotonic() + 20)
     retries_remaining: int = 1
     run_id: str | None = None
+    spent_tokens: int = 0
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    estimated_tokens: int = 0
+
+
+def estimate_tokens(payload: str, message_count: int) -> int:
+    """Planning heuristic, NOT a tokenizer or a guaranteed upper bound for GPT-OSS.
+
+    UTF-8 bytes / 3 plus message framing is deliberately more cautious than the
+    common English four-characters heuristic. Actual provider usage replaces it.
+    """
+    return math.ceil(len(payload.encode("utf-8")) / 3) + 12 * message_count + 32
 
 
 @dataclass(frozen=True)

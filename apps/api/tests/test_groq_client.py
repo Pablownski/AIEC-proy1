@@ -73,7 +73,11 @@ async def test_default_model_request_response_and_close(sdk):
         result = await client.complete(messages)
     factory.assert_called_once_with(api_key="test-key", timeout=10.0, max_retries=0)
     backend.chat.completions.create.assert_awaited_once_with(
-        model="openai/gpt-oss-120b", messages=messages, stream=False
+        model="openai/gpt-oss-120b",
+        messages=messages,
+        stream=False,
+        max_completion_tokens=1800,
+        reasoning_effort="low",
     )
     assert result.choices[0].message.content == "Una recomendación"
     backend.close.assert_awaited_once()

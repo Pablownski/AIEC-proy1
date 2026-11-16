@@ -40,6 +40,7 @@ def failure_code(exc: BaseException) -> str:
         "rate_limit",
         "provider",
         "response",
+        "budget",
     }:
         return f"groq_{exc.code}"
     if isinstance(exc, TimeoutError):

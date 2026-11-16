@@ -43,7 +43,7 @@ def test_projection_reduces_payload_but_keeps_recommendation_evidence():
         assert full.source_url == short["source_url"]
         assert full.keywords == short["keywords"]
         assert full.writing_credits[0].job == short["writing_credits"][0]["job"]
-        assert len(short["overview"]) == 600
+        assert len(short["overview"]) == 350
         assert short["truncated_fields"] == ["overview"]
         assert "poster_url" not in short and "imdb_url" not in short
     assert original.items[0].poster_url  # Full backend data is unchanged.
@@ -65,7 +65,7 @@ def test_books_keep_authors_dates_identifiers_and_links_with_explicit_excerpt():
     assert data["published_date"] == "1990"
     assert data["identifiers"] == ["ISBN_13:123"]
     assert data["source_url"] == book.source_url
-    assert len(data["description"]) == 600
+    assert len(data["description"]) == 350
     assert data["truncated_fields"] == ["description"]
 
 

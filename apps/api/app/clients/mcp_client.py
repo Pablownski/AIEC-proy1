@@ -51,7 +51,9 @@ class MCPTools:
         response = await self.session.call_tool(name, validated)
         if response.isError or response.structuredContent is None:
             raise ValueError("La herramienta MCP no pudo completar la consulta")
-        if len(json.dumps(response.structuredContent)) > 30000:
+        if len(json.dumps(response.structuredContent)) > (
+            120000 if name == "compare_movies" else 30000
+        ):
             raise ValueError("Resultado MCP demasiado grande")
         return ToolResult.model_validate(response.structuredContent)
 

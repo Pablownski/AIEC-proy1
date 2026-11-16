@@ -156,7 +156,7 @@ segura, pero ahora impiden confirmar el turno en memoria aunque haya texto final
 El LLM recibe evidencias consolidadas por tipo/ID una sola vez, más el último
 intercambio de herramientas (referencias a esas evidencias). Se omiten pósteres e
 IMDb del contexto, pero se conservan completos en backend. Sinopsis/descripciones
-se limitan a 600 caracteres con `truncated_fields`; cuando hay referencias a
+se limitan a 350 caracteres con `truncated_fields`; cuando hay referencias a
 adaptaciones después del prefijo, se incluye un extracto de esa zona. Identidades,
 autores, fechas, créditos, keywords, calificaciones e identificadores no se resumen.
 Se conserva completo el último diálogo para resolver referencias a las tres
@@ -217,3 +217,6 @@ Referencias: [Groq](https://console.groq.com/docs/tool-use/overview),
 [MCP](https://github.com/modelcontextprotocol/python-sdk/tree/v1.x),
 [TMDB](https://developer.themoviedb.org/reference/movie-details),
 [Google Books](https://developers.google.com/books/docs/v1/using).
+
+La corrección preventiva y las mediciones reproducibles están en
+[EFICIENCIA_GROQ.md](EFICIENCIA_GROQ.md).

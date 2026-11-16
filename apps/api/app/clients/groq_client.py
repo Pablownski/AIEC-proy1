@@ -1,4 +1,4 @@
-"""Async Groq boundary; not yet wired into the chatbot or its agent."""
+"""Async Groq boundary with safe errors and bounded, preventive token admission."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ from groq import (
 )
 from groq.types.chat import ChatCompletion, ChatCompletionMessageParam, ChatCompletionToolParam
 
-from app.clients.rate_limits import LimitType, RequestBudget, read_rate_limit
+from app.clients.rate_limits import LimitType, RequestBudget, estimate_tokens, read_rate_limit
 from app.core.config import Settings
 
 logger = logging.getLogger("uvicorn.error")
@@ -53,6 +53,10 @@ class GroqClient:
             raise GroqClientError("configuration", "GROQ_API_KEY no está configurada.")
         self._model = settings.groq_model
         self._timeout_seconds = timeout_seconds
+        self._turn_limit = settings.groq_turn_token_budget
+        self._minute_limit = int(settings.groq_tpm_budget * 0.9)
+        # Shared by conversations using this client; reservations include in-flight requests.
+        self._recent: list[list[float]] = []
         self._client = AsyncGroq(
             api_key=settings.groq_api_key.get_secret_value(),
             timeout=timeout_seconds,
@@ -72,6 +76,54 @@ class GroqClient:
         attempts = 0
         request_chars = len(json.dumps(messages, ensure_ascii=False))
         schema_chars = len(json.dumps(tools or [], ensure_ascii=False))
+        estimate = estimate_tokens(
+            json.dumps([messages, tools or []], ensure_ascii=False, separators=(",", ":")),
+            len(messages),
+        )
+        required = estimate + 1800  # Reserve the full maximum output, including reasoning.
+        self._recent = [record for record in self._recent if record[0] > time.monotonic() - 60]
+
+        def reject(reason: str) -> GroqClientError:
+            logger.warning(
+                json.dumps(
+                    {
+                        "event": "groq_budget_limited",
+                        "reason": reason,
+                        "run_id": budget.run_id,
+                        "estimated_input_tokens": estimate,
+                        "output_reserve": 1800,
+                        "turn_tokens": budget.spent_tokens,
+                        "recent_tokens": sum(r[1] for r in self._recent),
+                    }
+                )
+            )
+            return GroqClientError("budget", "Espera antes de consultar nuevamente.")
+
+        if budget.spent_tokens + required > self._turn_limit or required > self._minute_limit:
+            raise reject("turn_or_request")
+        if sum(record[1] for record in self._recent) + required > self._minute_limit:
+            window_delay = max(0.0, self._recent[0][0] + 60 - time.monotonic())
+            if time.monotonic() + window_delay + self._timeout_seconds >= budget.deadline:
+                raise reject("recent_window")
+            logger.info(
+                json.dumps(
+                    {
+                        "event": "groq_budget_wait",
+                        "run_id": budget.run_id,
+                        "wait_seconds": round(window_delay, 2),
+                    }
+                )
+            )
+            await asyncio.sleep(window_delay)
+            self._recent = [r for r in self._recent if r[0] > time.monotonic() - 60]
+            if sum(r[1] for r in self._recent) + required > self._minute_limit:
+                raise reject("recent_window")
+        if time.monotonic() + self._timeout_seconds >= budget.deadline:
+            raise reject("deadline")
+        reservation = [time.monotonic(), float(required)]
+        self._recent.append(reservation)
+        budget.estimated_tokens += estimate
+        budget.spent_tokens += required
         try:
             while True:
                 try:
@@ -93,6 +145,10 @@ class GroqClient:
                             model=self._model,
                             messages=messages,
                             stream=False,
+                            max_completion_tokens=1800,
+                            reasoning_effort="low"
+                            if self._model in {"openai/gpt-oss-120b", "openai/gpt-oss-20b"}
+                            else omit,
                         )
                     break
                 except RateLimitError as exc:
@@ -150,6 +206,11 @@ class GroqClient:
         if not (message.content and message.content.strip()) and not message.tool_calls:
             raise GroqClientError("response", "Groq devolvió una respuesta sin contenido.")
         if response.usage:
+            used = response.usage.prompt_tokens + response.usage.completion_tokens
+            reservation[1] = float(used)
+            budget.spent_tokens += used - required
+            budget.prompt_tokens += response.usage.prompt_tokens
+            budget.completion_tokens += response.usage.completion_tokens
             logger.info(
                 json.dumps(
                     {
@@ -159,6 +220,8 @@ class GroqClient:
                         "completion_tokens": response.usage.completion_tokens,
                         "request_chars": request_chars,
                         "schema_chars": schema_chars,
+                        "estimated_input_tokens": estimate,
+                        "turn_tokens": budget.spent_tokens,
                     }
                 )
             )

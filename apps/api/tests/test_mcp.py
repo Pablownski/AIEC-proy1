@@ -23,11 +23,12 @@ async def test_real_stdio_discovery_and_all_tools():
                 await session.initialize()
                 client = MCPTools(session)
                 tools = await client.discover()
-                assert len(tools) == 5
+                assert len(tools) == 6
                 for name, args in [
                     ("search_movies", {"query": "x"}),
                     ("discover_movies", {"genre": "fantasía"}),
                     ("movie_details", {"movie_id": 11}),
+                    ("compare_movies", {"movie_ids": [11]}),
                     ("search_books", {"title": "x"}),
                     ("book_details", {"volume_id": "volume_test"}),
                 ]:
@@ -45,7 +46,7 @@ async def test_production_stdio_server_starts_without_reading_dotenv():
     async with asyncio.timeout(30):
         async with open_catalog_tools(Settings()) as client:
             tools = await client.discover()
-            assert len(tools) == 5
+            assert len(tools) == 6
             result = await client.call("search_movies", '{"query":"x"}')
             assert result.error == "configuration"
 

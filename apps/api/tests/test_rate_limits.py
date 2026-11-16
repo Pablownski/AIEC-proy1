@@ -9,6 +9,7 @@ import httpx
 import pytest
 from groq import RateLimitError
 from groq.types.chat import ChatCompletion
+from groq.types.completion_usage import CompletionUsage
 
 from app.agents.groq_agent import DAILY_LIMIT_ERROR, GroqAgent
 from app.clients.groq_client import GroqClient, GroqClientError
@@ -168,6 +169,15 @@ async def test_observed_third_round_429_retries_without_reexecuting_tools(compar
         limited(),
         completion(content="Puedo comparar solo lo confirmado por las fuentes"),
     ]
+    # Successful production completions include usage; account for it rather than
+    # reserving the maximum forever when a mock omits the provider counters.
+    responses = list(sdk[1].chat.completions.create.side_effect)
+    for response in responses:
+        if isinstance(response, ChatCompletion):
+            response.usage = CompletionUsage(
+                prompt_tokens=100, completion_tokens=20, total_tokens=120
+            )
+    sdk[1].chat.completions.create.side_effect = responses
     with patch("app.clients.groq_client.asyncio.sleep", new_callable=AsyncMock) as sleep:
         async with GroqClient(Settings(groq_api_key="test-key")) as client:
             agent = GroqAgent(Settings(), client)

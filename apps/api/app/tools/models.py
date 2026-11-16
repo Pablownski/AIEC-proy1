@@ -56,12 +56,24 @@ class BookDetails(Arguments):
     volume_id: VolumeID
 
 
+class CompareMovies(Arguments):
+    movie_ids: list[Annotated[int, Field(gt=0, le=2_147_483_647)]] = Field(
+        min_length=1, max_length=3
+    )
+
+    @model_validator(mode="after")
+    def canonical_ids(self) -> "CompareMovies":
+        self.movie_ids = sorted(set(self.movie_ids))
+        return self
+
+
 INPUTS: dict[str, type[Arguments]] = {
     "search_movies": SearchMovies,
     "discover_movies": DiscoverMovies,
     "movie_details": MovieDetails,
     "search_books": SearchBooks,
     "book_details": BookDetails,
+    "compare_movies": CompareMovies,
 }
 
 
@@ -107,6 +119,8 @@ class Book(BaseModel):
 class ToolResult(BaseModel):
     source: Literal["tmdb", "google_books"]
     items: list[Movie | Book] = Field(default_factory=list, max_length=5)
+    # A bounded MCP operation may return multiple separately attributed sources.
+    related: list["ToolResult"] = Field(default_factory=list, max_length=3)
     error: (
         Literal[
             "configuration",
@@ -122,6 +136,10 @@ class ToolResult(BaseModel):
 
     @model_validator(mode="after")
     def check_source(self) -> "ToolResult":
+        if self.related and (
+            self.source != "tmdb" or any(result.related for result in self.related)
+        ):
+            raise ValueError("Fuentes agrupadas inválidas")
         for item in self.items:
             expected = (
                 f"https://www.themoviedb.org/movie/{item.id}"

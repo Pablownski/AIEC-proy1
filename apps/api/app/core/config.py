@@ -3,7 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     mock_agent_delay_seconds: float = 0.4
     groq_api_key: SecretStr | None = None
     groq_model: str = "openai/gpt-oss-120b"
+    groq_tpm_budget: int = Field(default=8000, ge=1000, le=1_000_000)
+    groq_turn_token_budget: int = Field(default=7000, ge=1000, le=1_000_000)
     agent_provider: Literal["mock", "groq"] = "mock"
     tmdb_api_key: SecretStr | None = None
     google_books_api_key: SecretStr | None = None

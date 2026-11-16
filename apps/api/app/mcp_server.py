@@ -9,7 +9,8 @@ from pydantic import Field
 
 from app.clients.catalog import CatalogClient
 from app.core.config import Settings
-from app.tools.models import Genre, Query, ToolResult, VolumeID
+from app.tools.comparison import compare_movies as compare_catalog
+from app.tools.models import CompareMovies, Genre, Query, ToolResult, VolumeID
 
 
 def create_server(catalog: CatalogClient) -> FastMCP:
@@ -49,6 +50,18 @@ def create_server(catalog: CatalogClient) -> FastMCP:
     async def book_details(volume_id: VolumeID) -> ToolResult:
         """Obtiene autores, descripción, fecha, identificadores y enlace de un volumen."""
         return await catalog.execute("book_details", {"volume_id": volume_id})
+
+    @server.tool()
+    async def compare_movies(
+        movie_ids: Annotated[
+            list[Annotated[int, Field(gt=0, le=2_147_483_647)]], Field(min_length=1, max_length=3)
+        ],
+    ) -> ToolResult:
+        """Para comparar 1-3 películas conocidas con libros: agrupa detalles TMDB y búsquedas
+        Books por título/autor Novel. Devuelve candidatos, NO confirma relaciones por título.
+        Prefiere esta operación a consultar cada película y libro en rondas separadas.
+        """
+        return await compare_catalog(catalog, CompareMovies(movie_ids=movie_ids).movie_ids)
 
     return server
 

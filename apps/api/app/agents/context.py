@@ -8,12 +8,16 @@ from typing import Any
 
 from groq.types.chat import ChatCompletionMessageParam, ChatCompletionToolParam
 
-from app.tools.models import INPUTS, ToolResult
+from app.tools.models import INPUTS, Movie, ToolResult
 
 
 def cache_key(name: str, arguments: str) -> str:
     model = INPUTS[name].model_validate_json(arguments)
-    return name + ":" + json.dumps(model.model_dump(), sort_keys=True, ensure_ascii=False)
+    data = model.model_dump()
+    for field in ("query", "title", "author"):
+        if isinstance(data.get(field), str):
+            data[field] = " ".join(data[field].split()).casefold()
+    return name + ":" + json.dumps(data, sort_keys=True, ensure_ascii=False)
 
 
 def project_result(result: ToolResult) -> dict[str, Any]:
@@ -25,17 +29,17 @@ def project_result(result: ToolResult) -> dict[str, Any]:
         truncated = []
         for field in ("overview", "description"):
             text = data.get(field)
-            if isinstance(text, str) and len(text) > 600:
+            if isinstance(text, str) and len(text) > 350:
                 match = re.search(
                     r"adapt\w*|pel[ií]cula|\bfilm\w*|\bmovie\w*|cinema\w*",
                     text,
                     flags=re.IGNORECASE,
                 )
-                if match and match.start() > 600:
+                if match and match.start() > 350:
                     start = max(0, match.start() - 80)
-                    data[field] = text[:300] + "\n[…]\n" + text[start : start + 290]
+                    data[field] = text[:170] + "\n[…]\n" + text[start : start + 170]
                 else:
-                    data[field] = text[:600]
+                    data[field] = text[:350]
                 truncated.append(field)
         # Never summarize identities, authors, credits, keywords, ratings or source links.
         data = {key: value for key, value in data.items() if value not in ([], "")}
@@ -52,10 +56,35 @@ def project_result(result: ToolResult) -> dict[str, Any]:
 def evidence_json(results: list[ToolResult]) -> str:
     facts: dict[tuple[str, str | int], dict[str, Any]] = {}
     errors = []
+    movies = [item for result in results for item in result.items if isinstance(item, Movie)]
+
+    def priority(book: dict[str, Any]) -> int:
+        # Ranking excerpts is not proof of adaptation; all candidates retain identities.
+        return max(
+            (
+                2 * int(movie.title.casefold() == book["title"].casefold())
+                + int(
+                    any(
+                        c.job == "Novel"
+                        and c.name.casefold() in {a.casefold() for a in book.get("authors", [])}
+                        for c in movie.writing_credits
+                    )
+                )
+                for movie in movies
+            ),
+            default=0,
+        )
+
     for result in results:
         if result.error:
             errors.append({"source": result.source, "error": result.error})
-        for item in project_result(result)["items"]:
+        items = project_result(result)["items"]
+        if result.source == "google_books" and items:
+            best = max(range(len(items)), key=lambda index: priority(items[index]))
+            for index, item in enumerate(items):
+                if index != best and item.pop("description", None) is not None:
+                    item["omitted_fields"] = ["description"]
+        for item in items:
             key = (item["kind"], item["id"])
             facts[key] = {**facts.get(key, {}), **item}
     return json.dumps(
