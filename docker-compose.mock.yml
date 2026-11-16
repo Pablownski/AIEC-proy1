@@ -1,0 +1,5 @@
+# Explicit opt-in; this filename is not loaded by default by Docker Compose.
+services:
+  api:
+    environment:
+      AGENT_PROVIDER: mock

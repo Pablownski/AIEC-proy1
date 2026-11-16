@@ -7,27 +7,53 @@ La dependencia MCP se limita a la línea compatible 1.x (`<2`).
 
 ## Configuración y ejecución
 
-Configurar **solo** `apps/api/.env` con los nombres de `.env.example`:
+Configurar **solo** `apps/api/.env`, usando `apps/api/.env.example` como plantilla:
 
 | Variable | Uso |
 |---|---|
-| `AGENT_PROVIDER` | `mock` por defecto; `groq` activa el agente real |
+| `AGENT_PROVIDER` | Valor explícito del archivo local: `groq` o `mock` |
 | `GROQ_API_KEY` | Obligatoria para `groq`; protegida con SecretStr |
 | `GROQ_MODEL` | `openai/gpt-oss-120b` por defecto |
 | `TMDB_API_KEY` | Clave API v3 de TMDB, no token Bearer |
 | `GOOGLE_BOOKS_API_KEY` | Opcional; puede exigirse según cuotas/configuración |
 
-Desde la raíz, en PowerShell:
+Desde la raíz, con `AGENT_PROVIDER=groq` en **apps/api/.env**:
 
 ```powershell
-$env:AGENT_PROVIDER = 'groq'
-docker compose up --build
+docker compose up --build -d
 ```
 
-En bash: `AGENT_PROVIDER=groq docker compose up --build`.
-Compose selecciona el agente desde el shell; el backend lee las claves del
-archivo montado en `/app/.env`. El frontend no monta el backend y los secretos se
-excluyen del build. Sin Docker, ejecutar Uvicorn desde `apps/api`.
+El servicio `api` declara `env_file: ./apps/api/.env`; el proveedor y las claves
+se inyectan únicamente en su contenedor. Una variable `AGENT_PROVIDER` heredada
+de PowerShell/bash ya no se interpola ni cambia el proveedor. El archivo es
+obligatorio: Compose falla claramente si no existe, sin elegir mock silenciosamente.
+`CORS_ORIGINS` se calcula en Compose según `WEB_PORT` para la demo local; el resto
+de configuración del backend procede del archivo o de los defaults de Settings.
+El frontend no monta el backend, no recibe claves y los secretos se excluyen del build.
+Sin Docker, Pydantic mantiene su precedencia habitual de entorno sobre `.env`.
+
+Para activar MockAgent deliberadamente en todo el stack, sin editar credenciales:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.mock.yml up --build -d
+```
+
+El override fija `mock` explícitamente y no se carga por defecto. Para volver a la
+configuración local usar `docker compose up --build -d`. Otra opción deliberada
+es editar solo `AGENT_PROVIDER=mock` en el archivo local. Los cambios de entorno
+requieren recreación mediante `up`; `restart` no recarga `env_file`.
+Una prueba aislada puede usar `docker compose run --rm --no-deps -e AGENT_PROVIDER=mock api pytest`.
+
+Verificar únicamente el proveedor y la clase, sin volcar variables ni secretos:
+
+```powershell
+docker compose exec -T api python -c "from app.core.config import get_settings; from app.api.deps import get_chat_service; print(get_settings().agent_provider, type(get_chat_service().agent).__name__)"
+```
+
+La salida esperada en modo real es `groq GroqAgent`; en modo simulado, `mock MockAgent`.
+La comprobación no llama a Groq, TMDB ni Books. No compartir `docker compose config`,
+`docker inspect`, `env` o dumps de Settings: pueden incluir claves. La selección
+del agente sigue en `api/deps.py`, sin cambios de lógica.
 
 ## MCP y metadatos
 

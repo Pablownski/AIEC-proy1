@@ -70,8 +70,8 @@ Los pósteres y datos se atribuyen a TMDB; no se presentan como propiedad del pr
 ## Verificación manual
 
 1. Configurar Groq y catálogos como indica `docs/GROQ.md` y ejecutar
-   `AGENT_PROVIDER=groq docker compose up --build` (en PowerShell, asignar primero
-   `$env:AGENT_PROVIDER='groq'`). No se añaden variables ni servicios nuevos.
+   `docker compose up --build -d`, con `AGENT_PROVIDER=groq` en `apps/api/.env`.
+   Compose carga explícitamente ese archivo; no selecciona el proveedor desde el shell.
 2. Pedir «Recomiéndame tres películas de fantasía»: revisar tarjetas, pósteres y
    calificaciones TMDB. Consultar también desde una pantalla pequeña.
 3. Pedir «Compárala con su libro y dime si vale la pena verla»: revisar fuentes,
@@ -79,7 +79,8 @@ Los pósteres y datos se atribuyen a TMDB; no se presentan como propiedad del pr
    verificadas. Puede ser necesario concretar cuál de las tres películas.
 4. Probar «Ábreme IMDb» para una película consultada con detalles. Sin IMDb ID no
    se inventa un enlace. Cerrar reservas o bloquear popups permite probar alternativas.
-5. Con `AGENT_PROVIDER=mock`, comprobar el chat de texto y el cierre de reservas
+5. Con el override explícito `docker-compose.mock.yml` (ver `docs/GROQ.md`), comprobar
+   el chat de texto y el cierre de reservas
    cuando la respuesta no incluye acciones.
 
 Validaciones: pytest/Ruff/mypy desde `apps/api`; lint, typecheck, Vitest y build

@@ -3,7 +3,8 @@
 Widget de chat reutilizable (`@agichat/chat-widget`) con un backend FastAPI de referencia (`MockAgent` hoy, agente real en Proyecto 2). Monorepo con Next.js, FastAPI y un SDK de React desacoplado del backend mediante un contrato de transporte (`ChatTransport`).
 
 Proyecto 2: disponible `GroqAgent` con herramientas MCP reales para TMDB y Google
-Books y memoria acotada. `MockAgent` sigue siendo el predeterminado. Ver
+Books y memoria acotada. El proveedor local se configura en `apps/api/.env` y
+`MockAgent` sigue disponible mediante selección explícita. Ver
 [configuración y ejecución del agente](docs/GROQ.md).
 
 Bloque 2: tarjetas con pósteres, comparaciones, referencias verificadas y atribución
@@ -19,11 +20,17 @@ TMDB. Ver [interfaz, compatibilidad y prueba en navegador](docs/INTERFAZ.md).
 ```bash
 git clone <este-repositorio>
 cd agichat
-docker compose up
+# Crear apps/api/.env desde apps/api/.env.example si aún no existe y configurarlo.
+docker compose up --build -d
 ```
 
 - Frontend: http://localhost:3000
 - Backend: http://localhost:8000 (documentación interactiva en `/docs`)
+
+Compose carga `apps/api/.env` solo en `api`; un `AGENT_PROVIDER` heredado del shell
+no sustituye el valor del archivo. Para MockAgent intencional:
+`docker compose -f docker-compose.yml -f docker-compose.mock.yml up --build -d`.
+Ver [cómo comprobar el proveedor sin secretos](docs/GROQ.md#configuración-y-ejecución).
 
 Si el puerto 3000 u 8000 ya están en uso en tu máquina:
 
@@ -51,7 +58,9 @@ Ver [docs/DESARROLLO.md](docs/DESARROLLO.md) para más detalle.
 
 ## Variables de entorno
 
-Ver [.env.example](.env.example). Nunca versionar un `.env` con secretos reales.
+Ver [.env.example](.env.example) para puertos/frontend y
+[apps/api/.env.example](apps/api/.env.example) para la configuración del backend.
+Nunca versionar un `.env` con secretos reales.
 
 ## Testing y cobertura
 
