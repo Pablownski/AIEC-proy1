@@ -6,6 +6,9 @@ Proyecto 2: disponible `GroqAgent` con herramientas MCP reales para TMDB y Googl
 Books y memoria acotada. `MockAgent` sigue siendo el predeterminado. Ver
 [configuración y ejecución del agente](docs/GROQ.md).
 
+Bloque 2: tarjetas con pósteres, comparaciones, referencias verificadas y atribución
+TMDB. Ver [interfaz, compatibilidad y prueba en navegador](docs/INTERFAZ.md).
+
 ## Requisitos
 
 - Docker + Docker Compose (recomendado), **o**

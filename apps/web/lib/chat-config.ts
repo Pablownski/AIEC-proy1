@@ -2,9 +2,9 @@ import { HttpChatTransport, type ChatTransport, type ChatWidgetConfig } from "@a
 
 export const chatWidgetConfig: ChatWidgetConfig = {
   agentName: "Damián",
-  description: "Tu asistente virtual",
+  description: "Asistente de IA para cine y libros",
   placeholder: "Escribe una pregunta...",
-  welcomeMessage: "¡Hola! Soy tu asistente virtual Damián. ¿En qué puedo ayudarte hoy?",
+  welcomeMessage: "¡Hola! Soy Damián, tu asistente de inteligencia artificial. Puedo recomendar películas y comparar adaptaciones con sus libros usando fuentes verificables. ¿Qué te gustaría descubrir?",
 };
 
 export function createChatTransport(): ChatTransport {

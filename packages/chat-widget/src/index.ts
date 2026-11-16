@@ -19,3 +19,5 @@ export { WebSocketChatTransport } from "./transport/websocket-transport";
 export type { WebSocketChatTransportOptions, WebSocketLike } from "./transport/websocket-transport";
 
 export type { ChatMessage, ChatStatus, ChatWidgetConfig, MessageRole } from "./types/chat";
+export { MovieCard, BookCard, CatalogCards } from "./components/CatalogCards";
+export type { ChatMetadata, MovieView, BookView, ComparisonView, ExternalAction } from "./types/presentation";

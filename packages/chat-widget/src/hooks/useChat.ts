@@ -9,6 +9,9 @@ export interface UseChatOptions {
   transport: ChatTransport;
   welcomeMessage?: string;
   conversationId?: string;
+  onSend?: (content: string) => void;
+  onReply?: (message: ChatMessage) => void;
+  onFailure?: () => void;
 }
 
 export interface UseChatResult {
@@ -29,7 +32,7 @@ function buildWelcomeMessage(content: string): ChatMessage {
   };
 }
 
-export function useChat({ transport, welcomeMessage, conversationId }: UseChatOptions): UseChatResult {
+export function useChat({ transport, welcomeMessage, conversationId, onSend, onReply, onFailure }: UseChatOptions): UseChatResult {
   const [messages, setMessages] = useState<ChatMessage[]>(() =>
     welcomeMessage ? [buildWelcomeMessage(welcomeMessage)] : [],
   );
@@ -47,19 +50,22 @@ export function useChat({ transport, welcomeMessage, conversationId }: UseChatOp
         setMessages((prev) => [...prev, reply]);
         setStatus("idle");
         lastFailedMessageRef.current = null;
+        onReply?.(reply);
       } catch (err) {
         setStatus("error");
         setError(err instanceof ChatTransportError ? err.message : GENERIC_ERROR);
         lastFailedMessageRef.current = userMessage;
+        onFailure?.();
       }
     },
-    [transport],
+    [transport, onReply, onFailure],
   );
 
   const sendMessage = useCallback(
     (content: string) => {
       const trimmed = content.trim();
       if (!trimmed) return;
+      onSend?.(trimmed);
       const userMessage: ChatMessage = {
         id: createId(),
         role: "user",
@@ -69,13 +75,13 @@ export function useChat({ transport, welcomeMessage, conversationId }: UseChatOp
       setMessages((prev) => [...prev, userMessage]);
       void attemptSend(userMessage);
     },
-    [attemptSend],
+    [attemptSend, onSend],
   );
 
   const retry = useCallback(() => {
     const failed = lastFailedMessageRef.current;
-    if (failed) void attemptSend(failed);
-  }, [attemptSend]);
+    if (failed) { onSend?.(failed.content); void attemptSend(failed); }
+  }, [attemptSend, onSend]);
 
   return {
     messages,
