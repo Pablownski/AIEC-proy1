@@ -9,6 +9,7 @@ from typing import cast
 
 from groq.types.chat import ChatCompletionMessageParam
 
+from app.agents.diagnostics import AgentFailure, TurnTrace, failure_code, provider_status
 from app.agents.memory import Conversation, ConversationMemory
 from app.clients.groq_client import GroqClient
 from app.clients.mcp_client import open_catalog_tools
@@ -44,13 +45,15 @@ class GroqAgent:
         client: GroqClient,
         memory: ConversationMemory | None = None,
         *,
-        max_rounds: int = 5,
+        max_rounds: int | None = None,
         max_tool_calls: int = 8,
         timeout_seconds: float = 60,
     ) -> None:
         self.settings, self.client = settings, client
         self.memory = memory or ConversationMemory()
-        self.max_rounds, self.max_tool_calls = max_rounds, max_tool_calls
+        # A sequential model may need one round per tool plus a final answer.
+        self.max_rounds = max_tool_calls + 1 if max_rounds is None else max_rounds
+        self.max_tool_calls = max_tool_calls
         self.timeout_seconds = timeout_seconds
         self.active = 0
 
@@ -60,35 +63,52 @@ class GroqAgent:
         if self.active >= 8:
             return "El servicio está ocupado. Intenta nuevamente."
         self.active += 1
+        trace = TurnTrace()
         try:
             async with asyncio.timeout(self.timeout_seconds):
                 async with self.memory.turn(conversation_id) as entry:
                     if entry.last_input == message and entry.last_reply:
                         return entry.last_reply
-                    return await self._run(message, entry)
-        except Exception:  # noqa: BLE001 - never expose provider/MCP details to the widget
+                    return await self._run(message, entry, trace)
+        except Exception as exc:  # noqa: BLE001 - provider details never reach logs or widget
+            trace.emit(
+                "agent_turn_failed", code=failure_code(exc), status_code=provider_status(exc)
+            )
             return SAFE_ERROR
         finally:
             self.active -= 1
 
-    async def _run(self, text: str, entry: Conversation) -> str:
+    async def _run(self, text: str, entry: Conversation, trace: TurnTrace) -> str:
         turn: list[ChatCompletionMessageParam] = [{"role": "user", "content": text}]
         artifacts: list[ToolResult] = []
         calls = 0
+        trace.stage = "mcp_connect"
         async with open_catalog_tools(self.settings) as tools:
+            trace.stage = "mcp_discovery"
             definitions = await tools.discover()
-            for _ in range(self.max_rounds):
+            for index in range(self.max_rounds):
                 messages: list[ChatCompletionMessageParam] = [
                     {"role": "system", "content": SYSTEM_PROMPT},
                     *entry.messages(),
                     *turn,
                 ]
-                response = await self.client.complete(messages, tools=definitions)
+                trace.stage = "llm"
+                trace.rounds += 1
+                allow_tools = index < self.max_rounds - 1 and calls < self.max_tool_calls
+                if allow_tools:
+                    response = await self.client.complete(messages, tools=definitions)
+                else:
+                    # Reserve synthesis without permitting extra external calls.
+                    response = await self.client.complete(
+                        messages,
+                        tools=definitions,
+                        allow_tools=False,
+                    )
                 answer = response.choices[0].message
                 if not answer.tool_calls:
                     reply = (answer.content or "").strip()
                     if not reply or len(reply) > 12000:
-                        raise ValueError("Respuesta inválida")
+                        raise AgentFailure("invalid_response")
                     if artifacts and not any(result.items for result in artifacts):
                         reply = (
                             "No hay resultados verificables para estas consultas. "
@@ -104,10 +124,13 @@ class GroqAgent:
                         )
                     turn.append({"role": "assistant", "content": reply})
                     # Commit after MCP has closed successfully, below.
+                    trace.stage = "mcp_close"
                     break
+                if not allow_tools:
+                    raise AgentFailure("tools_after_limit")
                 calls += len(answer.tool_calls)
                 if calls > self.max_tool_calls:
-                    raise ValueError("Límite de herramientas")
+                    raise AgentFailure("tool_limit")
                 turn.append(
                     cast(
                         ChatCompletionMessageParam,
@@ -117,19 +140,43 @@ class GroqAgent:
                     )
                 )
                 for call in answer.tool_calls:
+                    trace.stage = "tool"
+                    trace.tool_calls += 1
                     try:
                         async with asyncio.timeout(8):
                             result = await tools.call(call.function.name, call.function.arguments)
                         artifacts.append(result)
+                        if result.error:
+                            trace.tool_failed = True
+                        trace.emit(
+                            "agent_tool_finished",
+                            tool=call.function.name,
+                            code=f"catalog_{result.error}"
+                            if result.error
+                            else "ok"
+                            if result.items
+                            else "no_results",
+                        )
                         content = result.model_dump_json()
-                    except Exception:  # noqa: BLE001 - tool feedback is intentionally generic
+                    except Exception as exc:  # noqa: BLE001 - intentionally safe feedback
+                        trace.tool_failed = True
+                        trace.emit(
+                            "agent_tool_failed", tool=call.function.name, code=failure_code(exc)
+                        )
                         content = json.dumps(
                             {"error": "Consulta inválida o servicio no disponible"}
                         )
                     turn.append({"role": "tool", "tool_call_id": call.id, "content": content})
             else:
-                raise ValueError("Límite de iteraciones")
-        entry.commit(text, reply, turn, artifacts)
+                raise AgentFailure("round_limit")
+        trace.stage = "memory_commit"
+        if not trace.tool_failed:
+            entry.commit(text, reply, turn, artifacts)
+        trace.emit(
+            "agent_turn_completed",
+            code="partial_tool_failure" if trace.tool_failed else "ok",
+            memory_committed=not trace.tool_failed,
+        )
         return reply
 
     @staticmethod

@@ -50,8 +50,12 @@ contratos HTTP/WS actuales siguen devolviendo texto; no hay tarjetas ni acciones
 
 ## Límites y memoria
 
-Hasta 5 rondas LLM y 8 llamadas por turno, seleccionadas dinámicamente y ejecutadas
-en secuencia. Se deshabilita `parallel_tool_calls`: GPT OSS soporta herramientas,
+Hasta 8 llamadas a herramientas y 9 rondas LLM por turno: una por herramienta
+secuencial más una respuesta final. Al agotarse herramientas o rondas, se solicita
+síntesis con `tool_choice=none`; no se permiten consultas adicionales. Cinco
+rondas no bastaban para investigar tres películas, buscar tres libros y consultar
+un volumen (7 herramientas + respuesta final). El límite total sigue siendo 60 s.
+Se deshabilita `parallel_tool_calls`: GPT OSS soporta herramientas,
 pero no parallel tool use según la documentación consultada. Alternativa
 configurable: `GROQ_MODEL=openai/gpt-oss-20b`. No hay fallback silencioso ni
 activación de facturación; verificar disponibilidad y cuotas Free en la cuenta.
@@ -65,7 +69,9 @@ Los errores no incluyen cuerpos ni credenciales. No activar logs detallados del 
 
 La memoria conserva hasta 6 turnos completos, 24000 caracteres serializados,
 12 resultados tipados y 128 conversaciones, con TTL inactivo de 15 minutos.
-Se serializan turnos por conversación; solo se confirman al terminar correctamente.
+Se serializan turnos por conversación; solo se confirman al terminar correctamente,
+incluido el cierre MCP. Una respuesta parcial tras un error de herramienta/API
+no actualiza historial, artefactos ni la respuesta usada para deduplicación.
 Texto idéntico al último turno exitoso reutiliza su respuesta: el contrato actual
 no proporciona ID de solicitud para deduplicación exacta. Un turno demasiado grande
 se descarta entero del historial. Se pierde memoria al reiniciar; usar **un worker**
@@ -89,6 +95,32 @@ de `.env`; prueban MCP real con APIs simuladas y HTTP/WS con Groq simulado.
 La cobertura principal no incluye líneas ejecutadas en subprocess.
 Pendiente smoke test con credenciales, Docker disponible, cuotas, latencia y
 calidad semántica del modelo real. No se hacen llamadas reales durante pruebas.
+
+## Diagnóstico seguro
+
+El logger `uvicorn.error` emite eventos JSON `agent_tool_finished`,
+`agent_tool_failed`, `agent_turn_failed` y `agent_turn_completed`. Incluyen un
+`run_id` aleatorio por ejecución, etapa, rondas, herramientas ejecutadas, tiempo,
+código controlado y `memory_committed`; errores HTTP de Groq añaden solo el status
+numérico. No incluyen conversation_id, mensajes, argumentos, resultados, claves,
+system prompt, cuerpos de excepciones ni tracebacks. Los nombres de herramienta
+desconocidos se registran como `unknown`. Fallos de catálogo se distinguen por
+`catalog_authentication`, `catalog_rate_limit`, `catalog_timeout`, etc.; fallos
+Groq por `groq_*`. Revisar el código/etapa aunque el access log muestre HTTP 200:
+se conserva el contrato que devuelve un mensaje seguro como respuesta de chat.
+
+La regresión simulada demuestra insuficiencia de rondas, no la causa histórica
+exacta del incidente sin diagnósticos. No confirma fallos reales de Google Books,
+credenciales, cuotas, memoria o Groq. Los nuevos eventos permiten distinguirlos
+en futuras ejecuciones sin registrar contenido sensible.
+
+El mensaje genérico se produce al capturar excepciones de memoria (capacidad o
+frecuencia), timeout del turno, conexión/descubrimiento/cierre MCP, errores Groq,
+respuesta vacía/excesiva o presupuestos agotados. Un error de Google Books por sí
+solo devuelve un `ToolResult.error`; no dispara directamente ese mensaje. Antes
+podía provocar más consultas hasta agotar rondas, sin que se registrase la causa.
+Los errores de ejecución de herramientas también se comunican al modelo de forma
+segura, pero ahora impiden confirmar el turno en memoria aunque haya texto final.
 
 Referencias: [Groq](https://console.groq.com/docs/tool-use/overview),
 [MCP](https://github.com/modelcontextprotocol/python-sdk/tree/v1.x),

@@ -109,6 +109,18 @@ async def test_tool_definitions_enable_sequential_function_calling(sdk):
     assert kwargs["max_completion_tokens"] == 1800
 
 
+async def test_synthesis_can_disable_tools_without_changing_messages(sdk):
+    tools = [
+        {"type": "function", "function": {"name": "search_books", "parameters": {"type": "object"}}}
+    ]
+    messages = [{"role": "user", "content": "Compara con la evidencia disponible"}]
+    async with GroqClient(Settings(groq_api_key="test-key")) as client:
+        await client.complete(messages, tools=tools, allow_tools=False)
+    kwargs = sdk[1].chat.completions.create.call_args.kwargs
+    assert kwargs["tool_choice"] == "none"
+    assert kwargs["messages"] == messages
+
+
 async def test_response_preserves_tool_calls_without_executing_them(sdk):
     tool_calls = [
         {
@@ -151,6 +163,11 @@ async def test_provider_errors_are_controlled_and_sanitized(sdk, kind):
         with pytest.raises(GroqClientError) as caught:
             await client.complete([{"role": "user", "content": "Hola"}])
     assert caught.value.code == kind
+    assert caught.value.status_code == {
+        "authentication": 401,
+        "rate_limit": 429,
+        "provider": 500,
+    }.get(kind)
     rendered = "".join(traceback.format_exception(caught.value))
     assert "provider-private-detail" not in rendered
     assert "test-key" not in rendered

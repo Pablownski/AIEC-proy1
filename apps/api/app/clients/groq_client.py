@@ -9,6 +9,7 @@ from types import TracebackType
 from groq import (
     APIConnectionError,
     APIError,
+    APIStatusError,
     APITimeoutError,
     AsyncGroq,
     AuthenticationError,
@@ -22,9 +23,10 @@ from app.core.config import Settings
 class GroqClientError(Exception):
     """Controlled provider failure with a safe message and machine-readable code."""
 
-    def __init__(self, code: str, message: str) -> None:
+    def __init__(self, code: str, message: str, *, status_code: int | None = None) -> None:
         super().__init__(message)
         self.code = code
+        self.status_code = status_code
 
 
 class GroqClient:
@@ -45,6 +47,7 @@ class GroqClient:
         messages: Sequence[ChatCompletionMessageParam],
         *,
         tools: list[ChatCompletionToolParam] | None = None,
+        allow_tools: bool = True,
     ) -> ChatCompletion:
         """Return the full completion, preserving tool calls for a future agent."""
         try:
@@ -54,7 +57,7 @@ class GroqClient:
                     messages=messages,
                     stream=False,
                     tools=tools,
-                    tool_choice="auto",
+                    tool_choice="auto" if allow_tools else "none",
                     parallel_tool_calls=False,
                     max_completion_tokens=1800,
                 )
@@ -66,10 +69,18 @@ class GroqClient:
             raise GroqClientError("timeout", "Groq excedió el tiempo de espera.") from None
         except APIConnectionError:
             raise GroqClientError("connection", "No se pudo conectar con Groq.") from None
-        except AuthenticationError:
-            raise GroqClientError("authentication", "Groq rechazó la autenticación.") from None
-        except RateLimitError:
-            raise GroqClientError("rate_limit", "Groq alcanzó el límite de solicitudes.") from None
+        except AuthenticationError as exc:
+            raise GroqClientError(
+                "authentication", "Groq rechazó la autenticación.", status_code=exc.status_code
+            ) from None
+        except RateLimitError as exc:
+            raise GroqClientError(
+                "rate_limit", "Groq alcanzó el límite de solicitudes.", status_code=exc.status_code
+            ) from None
+        except APIStatusError as exc:
+            raise GroqClientError(
+                "provider", "No se pudo completar la solicitud a Groq.", status_code=exc.status_code
+            ) from None
         except APIError:
             raise GroqClientError("provider", "No se pudo completar la solicitud a Groq.") from None
 
