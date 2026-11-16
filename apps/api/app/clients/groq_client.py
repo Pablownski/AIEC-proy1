@@ -14,7 +14,7 @@ from groq import (
     AuthenticationError,
     RateLimitError,
 )
-from groq.types.chat import ChatCompletion, ChatCompletionMessageParam
+from groq.types.chat import ChatCompletion, ChatCompletionMessageParam, ChatCompletionToolParam
 
 from app.core.config import Settings
 
@@ -40,12 +40,28 @@ class GroqClient:
             max_retries=0,
         )
 
-    async def complete(self, messages: Sequence[ChatCompletionMessageParam]) -> ChatCompletion:
+    async def complete(
+        self,
+        messages: Sequence[ChatCompletionMessageParam],
+        *,
+        tools: list[ChatCompletionToolParam] | None = None,
+    ) -> ChatCompletion:
         """Return the full completion, preserving tool calls for a future agent."""
         try:
-            response = await self._client.chat.completions.create(
-                model=self._model, messages=messages, stream=False
-            )
+            if tools:
+                response = await self._client.chat.completions.create(
+                    model=self._model,
+                    messages=messages,
+                    stream=False,
+                    tools=tools,
+                    tool_choice="auto",
+                    parallel_tool_calls=False,
+                    max_completion_tokens=1800,
+                )
+            else:
+                response = await self._client.chat.completions.create(
+                    model=self._model, messages=messages, stream=False
+                )
         except APITimeoutError:
             raise GroqClientError("timeout", "Groq excedió el tiempo de espera.") from None
         except APIConnectionError:

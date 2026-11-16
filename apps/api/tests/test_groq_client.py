@@ -89,6 +89,26 @@ async def test_custom_model_and_timeout(sdk):
     await client.close()
 
 
+async def test_tool_definitions_enable_sequential_function_calling(sdk):
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "search_movies",
+                "description": "Busca películas",
+                "parameters": {"type": "object"},
+            },
+        }
+    ]
+    async with GroqClient(Settings(groq_api_key="test-key")) as client:
+        await client.complete([{"role": "user", "content": "Hola"}], tools=tools)
+    kwargs = sdk[1].chat.completions.create.call_args.kwargs
+    assert kwargs["tools"] == tools
+    assert kwargs["tool_choice"] == "auto"
+    assert kwargs["parallel_tool_calls"] is False
+    assert kwargs["max_completion_tokens"] == 1800
+
+
 async def test_response_preserves_tool_calls_without_executing_them(sdk):
     tool_calls = [
         {
