@@ -1,6 +1,6 @@
 # AGIChat SDK
 
-Widget de chat reutilizable (`@agichat/chat-widget`) con un backend FastAPI de referencia (`MockAgent` hoy, agente real en Proyecto 2). Monorepo con Next.js, FastAPI y un SDK de React desacoplado del backend mediante un contrato de transporte (`ChatTransport`).
+Widget de chat reutilizable (`@agichat/chat-widget`) con un backend FastAPI de referencia (GroqAgent y herramientas MCP en Proyecto 2; MockAgent para pruebas). Monorepo con Next.js, FastAPI y un SDK de React desacoplado del backend mediante un contrato de transporte (`ChatTransport`).
 
 Proyecto 2: disponible `GroqAgent` con herramientas MCP reales para TMDB y Google
 Books y memoria acotada. El proveedor local se configura en `apps/api/.env` y
@@ -102,7 +102,7 @@ El frontend nunca depende de una implementación concreta del agente. Ver [docs/
 
 ```text
 apps/web/               Next.js — app de demostración que consume el SDK
-apps/api/                FastAPI — REST /api/v1, WebSocket /ws/chat, MockAgent
+apps/api/                FastAPI — REST /api/v1, WebSocket /ws/chat, GroqAgent/MCP
 packages/chat-widget/    SDK reutilizable (@agichat/chat-widget)
 docs/                    Arquitectura, API, desarrollo, testing
 e2e/                     Tests end-to-end (Playwright)
@@ -115,3 +115,13 @@ e2e/                     Tests end-to-end (Playwright)
 ## Documentación para herramientas agénticas
 
 Ver [AGENTS.md](AGENTS.md) — reglas arquitectónicas, comandos y checklist antes de terminar una tarea.
+
+## Proyecto 2: arquitectura, seguridad y validacion
+
+Damian implementa un agente Groq con herramientas MCP para TMDB y Google Books, memoria acotada y tarjetas de fuentes verificadas. La demo utiliza HTTP; el SDK y API tambien soportan WebSocket.
+
+- [HLD, LLD, componentes y escalabilidad](docs/PROYECTO2-ARQUITECTURA.md)
+- [OWASP LLM01/LLM07, defensas y evaluaciones Promptfoo](docs/SEGURIDAD.md)
+- [Matriz de rubrica y validacion Docker HTTP/WebSocket](docs/VALIDACION-PROYECTO2.md)
+
+La barrera de salida bloquea coincidencias de instrucciones internas y credenciales antes de guardar el turno. Es una defensa parcial; consultar los limites y distinguir pruebas simuladas de evaluaciones con el modelo real.

@@ -66,3 +66,7 @@ Requiere que `apps/web` (con `NEXT_PUBLIC_API_URL` apuntando a un backend real) 
 
 - Los contratos Pydantic y TypeScript se testean directamente (sin mocks): son la fuente de verdad del dominio.
 - La sanitización de Markdown se testea con contenido real potencialmente inseguro (`<script>`, `onerror`), verificando el DOM resultante — no se mockea `rehype-sanitize`.
+
+## Seguridad e integracion de Proyecto 2
+
+Ver [evaluaciones OWASP y Promptfoo](SEGURIDAD.md) y [resultados, cobertura y E2E Docker](VALIDACION-PROYECTO2.md).

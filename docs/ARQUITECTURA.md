@@ -1,3 +1,5 @@
+> Para la implementacion actual de Proyecto 2, consultar [HLD/LLD de Damian](PROYECTO2-ARQUITECTURA.md). Este documento conserva las decisiones base del SDK.
+
 # Arquitectura — AGIChat SDK
 
 ## 1. Objetivos arquitectónicos

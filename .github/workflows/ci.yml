@@ -2,9 +2,9 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, Proyecto-2]
   push:
-    branches: [main]
+    branches: [main, Proyecto-2]
 
 env:
   NODE_VERSION: "24"
@@ -124,3 +124,36 @@ jobs:
         run: |
           echo "--- backend log ---"; cat /tmp/backend.log || true
           echo "--- frontend log ---"; cat /tmp/frontend.log || true
+
+  docker-e2e:
+    name: Docker HTTP and WebSocket E2E
+    runs-on: ubuntu-latest
+    needs: [frontend-tests, backend-tests]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Configure mock without credentials
+        run: cp apps/api/.env.example apps/api/.env
+      - name: Start Docker services
+        run: docker compose -f docker-compose.yml -f docker-compose.mock.yml up --build -d
+      - name: Wait for services
+        run: npx wait-on -t 120000 http-get://localhost:8000/api/v1/health http://localhost:3000
+      - run: npm run e2e -- --workers=2
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-e2e-evidence
+          path: test-results/
+      - name: Show Docker logs
+        if: always()
+        run: docker compose logs --no-color
+      - name: Stop Docker services
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.mock.yml down

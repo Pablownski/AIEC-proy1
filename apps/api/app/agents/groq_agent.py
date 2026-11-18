@@ -15,6 +15,7 @@ from app.agents.context import cache_key, compact_tools, dialogue, evidence_json
 from app.agents.diagnostics import AgentFailure, TurnTrace, failure_code, provider_status
 from app.agents.memory import Conversation, ConversationMemory
 from app.agents.presentation import build_metadata, parse_selection
+from app.agents.security import SECURITY_REFUSAL, exposes_protected_data
 from app.clients.groq_client import GroqClient, GroqClientError
 from app.clients.mcp_client import open_catalog_tools
 from app.clients.rate_limits import RequestBudget
@@ -118,6 +119,15 @@ class GroqAgent:
         self, text: str, entry: Conversation, trace: TurnTrace, budget: RequestBudget
     ) -> AgentReply:
         turn: list[ChatCompletionMessageParam] = [{"role": "user", "content": text}]
+        secrets = [
+            value.get_secret_value()
+            for value in (
+                self.settings.groq_api_key,
+                self.settings.tmdb_api_key,
+                self.settings.google_books_api_key,
+            )
+            if value is not None
+        ]
         artifacts: list[ToolResult] = []
         calls = 0
         cache = dict(entry.tool_cache)
@@ -185,6 +195,10 @@ class GroqAgent:
                     reply, selection = parse_selection(reply)
                     if not reply or len(reply) > 12000:
                         raise AgentFailure("invalid_response")
+
+                    if exposes_protected_data(reply, SYSTEM_PROMPT, secrets):
+                        trace.emit("agent_output_blocked", code="protected_output")
+                        return AgentReply(content=SECURITY_REFUSAL)
                     if artifacts and not any(result.items for result in artifacts):
                         reply = (
                             "No hay resultados verificables para estas consultas. "
@@ -236,6 +250,12 @@ class GroqAgent:
                     nonlocal unavailable, synthesize
                     trace.stage = "tool"
                     try:
+                        arguments = json.loads(call.function.arguments)
+                        argument_text = "\n".join(
+                            value for value in arguments.values() if isinstance(value, str)
+                        )
+                        if exposes_protected_data(argument_text, SYSTEM_PROMPT, secrets):
+                            raise ValueError("Protected tool arguments")
                         try:
                             key = cache_key(call.function.name, call.function.arguments)
                         except (ValueError, KeyError):
