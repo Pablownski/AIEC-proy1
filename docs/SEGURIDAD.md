@@ -119,3 +119,8 @@ Con el proveedor actual, repetir ese control clasificaría MockAgent como error
 operativo. No debe compararse directamente con aquel resultado histórico.
 
 Resultados actuales y requisitos pendientes: [VALIDACION-PROYECTO2.md](VALIDACION-PROYECTO2.md).
+
+## Evaluacion real sobre b27ca7b
+
+Ver [resultados y hallazgos](OWASP-RESULTADOS-2026-11-18.md). Esta evaluacion precede las correcciones remotas e248672; no certifica esa nueva version.
+

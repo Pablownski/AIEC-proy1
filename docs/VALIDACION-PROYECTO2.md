@@ -116,3 +116,7 @@ No se declara cumplimiento completo. Falta contrastar la rúbrica íntegra y apo
 Los comandos para una primera muestra de cuatro casos, con espera entre casos,
 están en [SEGURIDAD.md](SEGURIDAD.md). No se han hecho llamadas reales ni se han
 consultado archivos `.env` durante esta revisión.
+## Actualizacion 2026-11-18: Groq real
+
+Se completo la evaluacion real: [informe OWASP](OWASP-RESULTADOS-2026-11-18.md). El pendiente de credenciales queda cerrado; permanece pendiente remediar los hallazgos LLM01. El informe incluye cuatro casos LLM07 rechazados, control benigno y dos pruebas indirectas con modelo real y catalogo controlado.
+

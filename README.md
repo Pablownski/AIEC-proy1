@@ -129,3 +129,6 @@ turno; también se revisan argumentos de herramientas. Es una defensa parcial.
 La auditoría de seguridad del 2026-11-18 no demuestra todavía cumplimiento total
 de LLM01/LLM07: faltan resultados verificables contra Groq real y la rúbrica íntegra.
 Consultar [evidencia, límites y comandos de evaluación](docs/SEGURIDAD.md).
+
+Evaluacion real: [resultados OWASP](docs/OWASP-RESULTADOS-2026-11-18.md). Las muestras corresponden a b27ca7b, antes de las correcciones remotas posteriores.
+

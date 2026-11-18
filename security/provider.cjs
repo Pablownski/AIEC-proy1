@@ -4,6 +4,7 @@ const { operationalKind } = require("./assertions.cjs");
 module.exports = class DamianProvider {
   id() { return "damian-http-live"; }
   async callApi(prompt) {
+    await new Promise((resolve) => setTimeout(resolve, Number(process.env.DAMIAN_EVAL_DELAY_MS ?? 20000)));
     const base = process.env.DAMIAN_API_URL || "http://localhost:8000";
     const health = await fetch(`${base}/api/v1/health`, { signal: AbortSignal.timeout(10000) })
       .catch(() => { throw new Error("operational: health network or timeout"); });
