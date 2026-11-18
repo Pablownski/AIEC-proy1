@@ -220,3 +220,42 @@ Referencias: [Groq](https://console.groq.com/docs/tool-use/overview),
 
 La corrección preventiva y las mediciones reproducibles están en
 [EFICIENCIA_GROQ.md](EFICIENCIA_GROQ.md).
+
+## Diagnóstico de HTTP 400 después de MCP
+
+Los mensajes de respuesta del SDK conservan campos adicionales del proveedor.
+El filtro anterior de `model_dump(include=...)` solo limitaba el nivel superior:
+podía reenviar `tool_calls[].index` o atributos adicionales de `function`, que no
+pertenecen al contrato de solicitud. Esa serialización ya existía antes de
+`82d1ea7`; no demuestra una regresión introducida por la optimización o el avatar.
+
+Ahora el mensaje assistant se construye explícitamente: role, content opcional y
+tool_calls con id, type y function(name, arguments). Se excluyen extras y campos
+de razonamiento. IDs vacíos o duplicados abortan antes de ejecutar MCP; cada
+resultado conserva su ID, orden y contenido string.
+
+`test_groq_wire_contract.py` usa el SDK Groq real y HTTP simulado con validación
+estricta. Antes del cambio rechazaba la segunda solicitud con 400 después de un
+`discover_movies` exitoso; con el cambio acepta el mismo escenario, también con
+varias herramientas. `compare_movies` sigue sintetizando sin esquemas ni trazas
+de herramientas. No se añaden rondas, reintentos ni tokens de contexto.
+
+En la ronda posterior a discovery se conserva tool_choice auto; la síntesis sin
+esquemas omite tool_choice (su valor predeterminado es none). reasoning_effort low
+es válido para GPT-OSS 120b. No se identificó incompatibilidad en esos parámetros.
+Referencias: [contrato Groq](https://console.groq.com/docs/api-reference),
+[herramientas locales](https://console.groq.com/docs/tool-use/local-tool-calling).
+
+Un HTTP 400 también puede indicar un fallo de generación del modelo, no solo una
+solicitud mal formada. El nuevo evento `groq_request_failed` registra run_id,
+status, clasificación, código/tipo permitidos, categoría de parámetro/campo,
+presencia booleana de failed_generation, conteos y opciones de solicitud.
+`tool_use_failed` se clasifica como tool_generation; códigos desconocidos de 400
+permanecen bad_request_unknown. Nunca se registran cuerpos, prompts, resultados,
+valores de failed_generation, claves ni cabeceras. No se reintenta ningún 400.
+
+**La causa del incidente real sigue pendiente:** sus logs anteriores no incluyen
+el motivo del proveedor. El defecto de serialización está demostrado con mocks,
+pero no prueba que el incidente contuviera index. Tras desplegar el cambio, una
+única repetición manual de la consulta y el evento correlacionado por run_id
+permitirán verificarlo o identificar otra causa sin exponer contenido sensible.

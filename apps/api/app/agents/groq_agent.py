@@ -5,9 +5,8 @@ from __future__ import annotations
 import asyncio
 import json
 import re
-from typing import cast
 
-from groq.types.chat import ChatCompletionMessageParam
+from groq.types.chat import ChatCompletionAssistantMessageParam, ChatCompletionMessageParam
 from groq.types.chat.chat_completion_message_tool_call import (
     ChatCompletionMessageToolCall,
 )
@@ -205,17 +204,31 @@ class GroqAgent:
                     break
                 if not allow_tools:
                     raise AgentFailure("tools_after_limit")
+                ids = [call.id for call in answer.tool_calls]
+                if any(not call_id for call_id in ids) or len(set(ids)) != len(ids):
+                    raise AgentFailure("invalid_response")
                 calls += len(answer.tool_calls)
                 if calls > self.max_tool_calls:
                     raise AgentFailure("tool_limit")
-                latest_exchange = [
-                    cast(
-                        ChatCompletionMessageParam,
-                        answer.model_dump(
-                            include={"role", "content", "tool_calls"}, exclude_none=True
-                        ),
-                    )
-                ]
+                assistant: ChatCompletionAssistantMessageParam = {
+                    "role": "assistant",
+                    # SDK response models preserve unknown nested fields (e.g. index).
+                    # Rebuild the REQUEST contract; never echo response model_dump().
+                    "tool_calls": [
+                        {
+                            "id": call.id,
+                            "type": "function",
+                            "function": {
+                                "name": call.function.name,
+                                "arguments": call.function.arguments,
+                            },
+                        }
+                        for call in answer.tool_calls
+                    ],
+                }
+                if answer.content is not None:
+                    assistant["content"] = answer.content
+                latest_exchange = [assistant]
 
                 async def execute(
                     call: ChatCompletionMessageToolCall,

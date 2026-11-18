@@ -22,6 +22,7 @@ from groq import (
 )
 from groq.types.chat import ChatCompletion, ChatCompletionMessageParam, ChatCompletionToolParam
 
+from app.clients.groq_errors import classify_provider_error
 from app.clients.rate_limits import LimitType, RequestBudget, estimate_tokens, read_rate_limit
 from app.core.config import Settings
 
@@ -194,6 +195,34 @@ class GroqClient:
                 "authentication", "Groq rechazó la autenticación.", status_code=exc.status_code
             ) from None
         except APIStatusError as exc:
+            tool_call_count = 0
+            for outgoing_message in messages:
+                calls = outgoing_message.get("tool_calls")
+                if isinstance(calls, list):
+                    tool_call_count += len(calls)
+            logger.warning(
+                json.dumps(
+                    {
+                        "event": "groq_request_failed",
+                        "run_id": budget.run_id,
+                        "status_code": exc.status_code,
+                        **classify_provider_error(exc),
+                        "message_count": len(messages),
+                        "assistant_tool_calls": tool_call_count,
+                        "tool_results": sum(m["role"] == "tool" for m in messages),
+                        "has_tools": bool(tools),
+                        "tool_choice": ("auto" if allow_tools else "none") if tools else "omitted",
+                        "reasoning_effort": "low"
+                        if self._model
+                        in {
+                            "openai/gpt-oss-120b",
+                            "openai/gpt-oss-20b",
+                        }
+                        else "omitted",
+                        "will_retry": False,
+                    }
+                )
+            )
             raise GroqClientError(
                 "provider", "No se pudo completar la solicitud a Groq.", status_code=exc.status_code
             ) from None
