@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChatTransportError, type ChatTransport } from "../transport/chat-transport";
 import type { ChatMessage, ChatStatus } from "../types/chat";
 import { createId } from "./createId";
@@ -12,6 +12,7 @@ export interface UseChatOptions {
   onSend?: (content: string) => void;
   onReply?: (message: ChatMessage) => void;
   onFailure?: () => void;
+  onCancel?: () => void;
 }
 
 export interface UseChatResult {
@@ -21,6 +22,7 @@ export interface UseChatResult {
   isAgentTyping: boolean;
   sendMessage: (content: string) => void;
   retry: () => void;
+  cancel: () => void;
 }
 
 function buildWelcomeMessage(content: string): ChatMessage {
@@ -32,7 +34,7 @@ function buildWelcomeMessage(content: string): ChatMessage {
   };
 }
 
-export function useChat({ transport, welcomeMessage, conversationId, onSend, onReply, onFailure }: UseChatOptions): UseChatResult {
+export function useChat({ transport, welcomeMessage, conversationId, onSend, onReply, onFailure, onCancel }: UseChatOptions): UseChatResult {
   const [messages, setMessages] = useState<ChatMessage[]>(() =>
     welcomeMessage ? [buildWelcomeMessage(welcomeMessage)] : [],
   );
@@ -40,18 +42,36 @@ export function useChat({ transport, welcomeMessage, conversationId, onSend, onR
   const [error, setError] = useState<string | null>(null);
   const conversationIdRef = useRef(conversationId ?? createId());
   const lastFailedMessageRef = useRef<ChatMessage | null>(null);
+  const sequence = useRef(0);
+  const mounted = useRef(false);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; sequence.current += 1; };
+  }, []);
+
+  const cancel = useCallback(() => {
+    sequence.current += 1;
+    setStatus("idle");
+    setError(null);
+    lastFailedMessageRef.current = null;
+    onCancel?.();
+  }, [onCancel]);
 
   const attemptSend = useCallback(
     async (userMessage: ChatMessage) => {
+      const request = ++sequence.current;
       setStatus("receiving");
       setError(null);
       try {
         const reply = await transport.sendMessage(conversationIdRef.current, userMessage);
+        if (!mounted.current || request !== sequence.current) return;
         setMessages((prev) => [...prev, reply]);
         setStatus("idle");
         lastFailedMessageRef.current = null;
         onReply?.(reply);
       } catch (err) {
+        if (!mounted.current || request !== sequence.current) return;
         setStatus("error");
         setError(err instanceof ChatTransportError ? err.message : GENERIC_ERROR);
         lastFailedMessageRef.current = userMessage;
@@ -90,5 +110,6 @@ export function useChat({ transport, welcomeMessage, conversationId, onSend, onR
     isAgentTyping: status === "receiving",
     sendMessage,
     retry,
+    cancel,
   };
 }

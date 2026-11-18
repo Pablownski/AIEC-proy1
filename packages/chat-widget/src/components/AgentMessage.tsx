@@ -1,16 +1,20 @@
 import type { ChatMessage } from "../types/chat";
-import { MarkdownRenderer } from "./MarkdownRenderer";
+import { RevealedMarkdown } from "./RevealedMarkdown";
 import { CatalogCards } from "./CatalogCards";
 
 export interface AgentMessageProps {
   message: ChatMessage;
+  revealing?: boolean;
+  operation?: number;
+  onRevealComplete?: (operation: number) => void;
 }
 
-export function AgentMessage({ message }: AgentMessageProps) {
+export function AgentMessage({ message, revealing = false, operation = 0, onRevealComplete }: AgentMessageProps) {
   return (
     <li className="agichat-message agichat-message--agent">
-      <MarkdownRenderer content={message.content} />
-      {message.metadata && <CatalogCards data={message.metadata} />}
+      <RevealedMarkdown content={message.content} revealing={revealing} operation={operation}
+        onComplete={onRevealComplete} />
+      {!revealing && message.metadata && <CatalogCards data={message.metadata} />}
     </li>
   );
 }

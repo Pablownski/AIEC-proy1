@@ -7,16 +7,22 @@ export interface MessageListProps {
   messages: ChatMessage[];
   agentName: string;
   isAgentTyping: boolean;
+  revealingMessageId?: string;
+  operation?: number;
+  onRevealComplete?: (operation: number) => void;
 }
 
-export function MessageList({ messages, agentName, isAgentTyping }: MessageListProps) {
+export function MessageList({ messages, agentName, isAgentTyping, revealingMessageId, operation,
+  onRevealComplete }: MessageListProps) {
   return (
     <ul className="agichat-message-list" aria-label="Historial de conversación">
-      {messages.map((message) =>
+      {messages.map((message, index) =>
         message.role === "user" ? (
-          <UserMessage key={message.id} message={message} />
+          <UserMessage key={`${message.id}:${index}`} message={message} />
         ) : (
-          <AgentMessage key={message.id} message={message} />
+          <AgentMessage key={`${message.id}:${index}`} message={message}
+            revealing={index === messages.length - 1 && message.id === revealingMessageId}
+            operation={operation} onRevealComplete={onRevealComplete} />
         ),
       )}
       {isAgentTyping && (

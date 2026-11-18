@@ -64,7 +64,7 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 16px;
+  padding: 10px 16px;
   border-bottom: 1px solid var(--agichat-border);
 }
 

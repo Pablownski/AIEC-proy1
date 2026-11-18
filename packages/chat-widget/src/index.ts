@@ -1,6 +1,9 @@
 export { ChatWidget } from "./components/ChatWidget";
 export type { ChatWidgetProps } from "./components/ChatWidget";
 export { ChatHeader } from "./components/ChatHeader";
+export { DamianAvatar } from "./components/DamianAvatar";
+export type { DamianAvatarProps } from "./components/DamianAvatar";
+export type { AvatarState } from "./components/damian-sprites";
 export { MessageList } from "./components/MessageList";
 export { UserMessage } from "./components/UserMessage";
 export { AgentMessage } from "./components/AgentMessage";

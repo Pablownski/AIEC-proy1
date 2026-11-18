@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { CatalogCards, MovieCard, BookCard } from "../src/components/CatalogCards";
@@ -44,7 +44,7 @@ describe("provider cards", () => {
     await user.type(screen.getByLabelText("Escribe un mensaje"), "Compárala con su libro{Enter}");
     const status = await screen.findByText("No se pudieron abrir algunas referencias. Ábrelas aquí:");
     expect(within(status.parentElement!).getByRole("link", { name: "Abrir IMDb" })).toHaveAttribute("href", metadata.actions[0]!.url);
-    expect(await screen.findByText("Aquí está la comparación.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Aquí está la comparación.")).toBeVisible(), { timeout: 8000 });
     expect(screen.getByLabelText("Créditos de datos e imágenes")).toHaveTextContent("This product uses the TMDB API");
     vi.restoreAllMocks();
   });
