@@ -20,7 +20,7 @@ def cache_key(name: str, arguments: str) -> str:
     return name + ":" + json.dumps(data, sort_keys=True, ensure_ascii=False)
 
 
-def project_result(result: ToolResult) -> dict[str, Any]:
+def project_result(result: ToolResult, *, excerpt_chars: int = 350) -> dict[str, Any]:
     items = []
     for item in result.items:
         data = item.model_dump(exclude_none=True)
@@ -29,17 +29,18 @@ def project_result(result: ToolResult) -> dict[str, Any]:
         truncated = []
         for field in ("overview", "description"):
             text = data.get(field)
-            if isinstance(text, str) and len(text) > 350:
+            if isinstance(text, str) and len(text) > excerpt_chars:
                 match = re.search(
                     r"adapt\w*|pel[ií]cula|\bfilm\w*|\bmovie\w*|cinema\w*",
                     text,
                     flags=re.IGNORECASE,
                 )
-                if match and match.start() > 350:
+                if match and match.start() > excerpt_chars:
                     start = max(0, match.start() - 80)
-                    data[field] = text[:170] + "\n[…]\n" + text[start : start + 170]
+                    half = (excerpt_chars - 5) // 2
+                    data[field] = text[:half] + "\n[…]\n" + text[start : start + half]
                 else:
-                    data[field] = text[:350]
+                    data[field] = text[:excerpt_chars]
                 truncated.append(field)
         # Never summarize identities, authors, credits, keywords, ratings or source links.
         data = {key: value for key, value in data.items() if value not in ([], "")}
@@ -53,7 +54,7 @@ def project_result(result: ToolResult) -> dict[str, Any]:
     }
 
 
-def evidence_json(results: list[ToolResult]) -> str:
+def evidence_json(results: list[ToolResult], *, excerpt_chars: int = 350) -> str:
     facts: dict[tuple[str, str | int], dict[str, Any]] = {}
     errors = []
     movies = [item for result in results for item in result.items if isinstance(item, Movie)]
@@ -78,7 +79,7 @@ def evidence_json(results: list[ToolResult]) -> str:
     for result in results:
         if result.error:
             errors.append({"source": result.source, "error": result.error})
-        items = project_result(result)["items"]
+        items = project_result(result, excerpt_chars=excerpt_chars)["items"]
         if result.source == "google_books" and items:
             best = max(range(len(items)), key=lambda index: priority(items[index]))
             for index, item in enumerate(items):

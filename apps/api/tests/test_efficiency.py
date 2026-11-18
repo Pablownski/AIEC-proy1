@@ -12,7 +12,13 @@ import pytest
 from groq.types.completion_usage import CompletionUsage
 
 from app.agents.context import cache_key, compact_tools, evidence_json
-from app.agents.groq_agent import BOOKS_UNAVAILABLE, RATE_LIMIT_ERROR, SAFE_ERROR, GroqAgent
+from app.agents.groq_agent import (
+    BOOKS_UNAVAILABLE,
+    BUDGET_ERROR,
+    RATE_LIMIT_ERROR,
+    SAFE_ERROR,
+    GroqAgent,
+)
 from app.clients.catalog import CatalogClient
 from app.clients.groq_client import GroqClient, GroqClientError
 from app.clients.rate_limits import RequestBudget, estimate_tokens
@@ -284,16 +290,19 @@ def test_equivalent_queries_and_join_ids_have_identical_cache_keys():
 
 
 async def test_turn_budget_uses_actual_usage_and_reserves_output(sdk):
-    sdk[1].chat.completions.create.return_value = counted(completion(), prompt=5000, output=100)
+    sdk[1].chat.completions.create.side_effect = [
+        counted(completion(), prompt=5000, output=100),
+        counted(completion(), prompt=300, output=100),
+    ]
     budget = RequestBudget()
     async with GroqClient(Settings(groq_api_key="test", groq_turn_token_budget=7000)) as client:
         await client.complete([{"role": "user", "content": "a"}], budget=budget)
         assert budget.prompt_tokens == 5000 and budget.completion_tokens == 100
         assert budget.spent_tokens == 5100
-        with pytest.raises(GroqClientError) as error:
-            await client.complete([{"role": "user", "content": "x" * 1000}], budget=budget)
-    assert error.value.code == "budget"
-    assert sdk[1].chat.completions.create.await_count == 1
+        await client.complete([{"role": "user", "content": "x" * 1000}], budget=budget)
+        assert budget.spent_tokens == 5500 and budget.reserved_tokens == 0
+    assert sdk[1].chat.completions.create.await_count == 2
+    assert sdk[1].chat.completions.create.call_args.kwargs["max_completion_tokens"] < 1800
 
 
 async def test_rolling_usage_shared_across_conversations_and_missing_usage_is_reserved(sdk):
@@ -301,7 +310,7 @@ async def test_rolling_usage_shared_across_conversations_and_missing_usage_is_re
     async with GroqClient(Settings(groq_api_key="test")) as client:
         await client.complete([{"role": "user", "content": "a"}])
         with pytest.raises(GroqClientError, match="Espera"):
-            await client.complete([{"role": "user", "content": "b"}])
+            await client.complete([{"role": "user", "content": "b" * 2000}])
     async with GroqClient(Settings(groq_api_key="test")) as client:
         sdk[1].chat.completions.create.return_value = completion()  # No usage signals.
         budget = RequestBudget()
@@ -320,7 +329,9 @@ async def test_window_wait_is_bounded_and_can_recover(sdk):
         patch("app.clients.groq_client.asyncio.sleep", side_effect=advance) as sleep,
     ):
         async with GroqClient(Settings(groq_api_key="test")) as client:
-            client._recent = [[50.0, 6500.0]]
+            from app.clients.token_budget import Usage
+
+            client._tokens.usage = [Usage(50.0, 6500)]
             await client.complete(
                 [{"role": "user", "content": "a"}], budget=RequestBudget(deadline=140)
             )
@@ -330,7 +341,7 @@ async def test_window_wait_is_bounded_and_can_recover(sdk):
 async def test_insufficient_budget_safe_message_and_memory_rollback(agent_setup):
     agent, client, _ = agent_setup
     client.complete.side_effect = GroqClientError("budget", "safe")
-    assert await agent.respond("Compara", "budget") == RATE_LIMIT_ERROR
+    assert await agent.respond("Compara", "budget") == BUDGET_ERROR
     assert not agent.memory.entries["budget"].turns
 
 

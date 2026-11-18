@@ -72,7 +72,11 @@ async def test_minute_limit_retries_once_respecting_retry_after(sdk, caplog):
     assert "private-provider-detail" not in caplog.text
     assert "private-prompt" not in caplog.text
     assert "test-key" not in caplog.text
-    event = json.loads(caplog.records[0].getMessage())
+    event = next(
+        json.loads(r.getMessage())
+        for r in caplog.records
+        if json.loads(r.getMessage()).get("event") == "groq_rate_limited"
+    )
     assert event["limit_type"] == "tpm" and event["will_retry"] is True
 
 

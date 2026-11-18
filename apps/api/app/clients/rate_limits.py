@@ -24,6 +24,7 @@ class RequestBudget:
     prompt_tokens: int = 0
     completion_tokens: int = 0
     estimated_tokens: int = 0
+    reserved_tokens: int = 0
 
 
 def estimate_tokens(payload: str, message_count: int) -> int:
