@@ -363,7 +363,7 @@ async def test_comparable_transcript_metrics(comparison_setup, sdk, grouped, cap
         counted(completion(), prompt=2200, output=400),
     ]
     settings = Settings(
-        groq_api_key="test",
+        groq_api_key="synthetic-groq-metrics-key",
         groq_turn_token_budget=7000 if grouped else 100000,
         groq_tpm_budget=8000 if grouped else 100000,
     )

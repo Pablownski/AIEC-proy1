@@ -124,4 +124,8 @@ Damian implementa un agente Groq con herramientas MCP para TMDB y Google Books, 
 - [OWASP LLM01/LLM07, defensas y evaluaciones Promptfoo](docs/SEGURIDAD.md)
 - [Matriz de rubrica y validacion Docker HTTP/WebSocket](docs/VALIDACION-PROYECTO2.md)
 
-La barrera de salida bloquea coincidencias de instrucciones internas y credenciales antes de guardar el turno. Es una defensa parcial; consultar los limites y distinguir pruebas simuladas de evaluaciones con el modelo real.
+La barrera de salida inspecciona texto y metadatos anidados antes de guardar el
+turno; también se revisan argumentos de herramientas. Es una defensa parcial.
+La auditoría de seguridad del 2026-11-18 no demuestra todavía cumplimiento total
+de LLM01/LLM07: faltan resultados verificables contra Groq real y la rúbrica íntegra.
+Consultar [evidencia, límites y comandos de evaluación](docs/SEGURIDAD.md).

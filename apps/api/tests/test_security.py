@@ -1,14 +1,19 @@
 """Deterministic boundary tests, not measurements of a live model's robustness."""
 
 import base64
+import copy
+import json
 
 import pytest
 from pydantic import SecretStr
 
 from app.agents.groq_agent import SYSTEM_PROMPT
 from app.agents.security import SECURITY_REFUSAL, exposes_protected_data
+from app.tools.models import ToolResult
+from tests.test_comparison_regression import request_tool
 from tests.test_groq_agent import agent_setup, tool_reply  # noqa: F401 - pytest fixture import
 from tests.test_groq_client import completion
+from tests.test_presentation import evidence
 
 SECRET = "synthetic-security-token-123456789"
 
@@ -49,6 +54,26 @@ async def test_direct_injection_leak_is_blocked_before_memory(request, attack):
     assert await agent.respond(attack, "attack") == SECURITY_REFUSAL
     assert not agent.memory.entries["attack"].turns
     assert agent.active == 0
+
+
+async def test_configured_credentials_are_not_supplied_to_the_model(request):
+    agent, client, _ = request.getfixturevalue("agent_setup")
+    keys = [SECRET + suffix for suffix in ("-groq", "-tmdb", "-books")]
+    (
+        agent.settings.groq_api_key,
+        agent.settings.tmdb_api_key,
+        agent.settings.google_books_api_key,
+    ) = (SecretStr(key) for key in keys)
+    client.complete.return_value = completion(
+        content="Puedo comparar películas y libros con fuentes."
+    )
+    await agent.respond("Explica tus capacidades públicas", "public")
+    outgoing = json.dumps(client.complete.call_args.args) + json.dumps(
+        {
+            "tools": client.complete.call_args.kwargs.get("tools"),
+        }
+    )
+    assert not any(key in outgoing for key in keys)
 
 
 async def test_configured_secret_is_blocked(request):
@@ -105,3 +130,48 @@ async def test_tool_arguments_cannot_exfiltrate_protected_data(request, payload)
 def test_short_synthetic_key_does_not_block_catalog_identifiers():
     assert not exposes_protected_data("test-book-id", SYSTEM_PROMPT, ["test"])
     assert exposes_protected_data("key=test", SYSTEM_PROMPT, ["test"])
+
+
+@pytest.mark.parametrize("channel", ["opinion", "movie_overview", "book_description"])
+@pytest.mark.parametrize("encoded", [False, True])
+async def test_structured_output_cannot_bypass_dlp_or_poison_memory(request, channel, encoded):
+    agent, client, tools = request.getfixturevalue("agent_setup")
+    agent.settings.groq_api_key = SecretStr(SECRET)
+    client.complete.return_value = completion(content="Puedo comparar películas con sus libros.")
+    await agent.respond("Capacidades", "structured")
+    entry = agent.memory.entries["structured"]
+    previous = copy.deepcopy((entry.turns, entry.artifacts, entry.tool_cache, entry.last_metadata))
+    payload = (
+        base64.b64encode(SECRET.encode()).decode()
+        if encoded
+        else " ".join(SYSTEM_PROMPT.split()[15:40])
+    )
+    movie_result, book_result = evidence()
+    opinion = "Opinión limitada a las fuentes."
+    if channel == "opinion":
+        opinion = payload
+    elif channel == "movie_overview":
+        movie_result.items[0].overview = payload
+    else:
+        book_result.items[0].description = payload
+    tools.call.return_value = ToolResult(
+        source="tmdb", items=movie_result.items, related=[book_result]
+    )
+    client.complete.side_effect = [
+        request_tool("compare_movies", {"movie_ids": [11]}, 0),
+        completion(
+            content=json.dumps(
+                {
+                    "content": "Datos de la película y el libro consultados.",
+                    "movie_ids": [11],
+                    "book_ids": ["test_volume"],
+                    "comparisons": [{"movie_id": 11, "book_id": "test_volume", "opinion": opinion}],
+                }
+            )
+        ),
+    ]
+    response = await agent.respond_with_metadata("Compara las obras", "structured")
+    assert response.content == SECURITY_REFUSAL
+    assert response.metadata is None
+    assert (entry.turns, entry.artifacts, entry.tool_cache, entry.last_metadata) == previous
+    assert agent.active == 0

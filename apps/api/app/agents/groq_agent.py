@@ -16,7 +16,11 @@ from app.agents.context import cache_key, compact_tools, dialogue, evidence_json
 from app.agents.diagnostics import AgentFailure, TurnTrace, failure_code, provider_status
 from app.agents.memory import Conversation, ConversationMemory
 from app.agents.presentation import build_metadata, parse_selection
-from app.agents.security import SECURITY_REFUSAL, exposes_protected_data
+from app.agents.security import (
+    SECURITY_REFUSAL,
+    exposes_protected_data,
+    exposes_protected_structure,
+)
 from app.clients.groq_client import GroqClient, GroqClientError
 from app.clients.mcp_client import open_catalog_tools
 from app.clients.rate_limits import RequestBudget
@@ -454,6 +458,13 @@ class GroqAgent:
         metadata = build_metadata(
             [*entry.artifacts, *artifacts] if selection else artifacts, selection, text
         )
+        if (
+            not trace.tool_failed
+            and metadata
+            and exposes_protected_structure(metadata.model_dump(), SYSTEM_PROMPT, secrets)
+        ):
+            trace.emit("agent_output_blocked", code="protected_metadata_output")
+            return AgentReply(content=SECURITY_REFUSAL)
         if not trace.tool_failed:
             entry.commit(text, reply, turn, artifacts, cache)
             entry.last_metadata = metadata

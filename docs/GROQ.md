@@ -117,7 +117,9 @@ algunas relaciones no podrán resolverse. Valorar si merece verse es una recomen
 subjetiva limitada a los metadatos disponibles.
 
 Los resultados externos son datos no confiables. Prompt y validación no garantizan
-ausencia de prompt injection o alucinaciones. LLM01/LLM07 quedan para otro bloque.
+ausencia de prompt injection o alucinaciones. Las defensas parciales y pruebas
+LLM01/LLM07 están en [SEGURIDAD.md](SEGURIDAD.md); la evaluación con Groq real
+sigue pendiente de evidencia verificable.
 Desde `apps/api`: `ruff check .`, `ruff format --check .`, `mypy app` y
 `pytest --cov=app --cov-fail-under=80`. Las pruebas bloquean HTTP externo y lectura
 de `.env`; prueban MCP real con APIs simuladas y HTTP/WS con Groq simulado.

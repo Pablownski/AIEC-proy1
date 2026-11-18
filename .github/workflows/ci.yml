@@ -25,6 +25,8 @@ jobs:
       - run: npm run lint --workspace apps/web
       - run: npm run typecheck --workspace @agichat/chat-widget
       - run: npm run typecheck --workspace apps/web
+      - name: Offline security evaluation harness
+        run: node --test security/provider.test.cjs
 
   backend-quality:
     name: Backend lint & typecheck

@@ -43,3 +43,19 @@ def exposes_protected_data(text: str, prompt: str, secrets: Iterable[str]) -> bo
         if any(fragment in normalized(candidate) for fragment in fragments):
             return True
     return False
+
+
+def exposes_protected_structure(value: object, prompt: str, secrets: Iterable[str]) -> bool:
+    """Inspect every output string, including nested cards and model-written opinions."""
+    protected = tuple(secrets)
+
+    def visit(node: object) -> bool:
+        if isinstance(node, str):
+            return exposes_protected_data(node, prompt, protected)
+        if isinstance(node, dict):
+            return any(visit(item) for item in node.values())
+        if isinstance(node, (list, tuple)):
+            return any(visit(item) for item in node)
+        return False
+
+    return visit(value)
